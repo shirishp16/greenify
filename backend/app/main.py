@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
+from app.api.igs import router as igs_router
 from app.api.routes import router
 
 
@@ -20,3 +21,4 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(igs_router)
