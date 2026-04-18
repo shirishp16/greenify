@@ -22,7 +22,7 @@ import {
   type SavingsRunRecord,
 } from "./savings";
 import type { AgentResponse, ChatLogMessage, HomeState } from "./types";
-import { formatWatts, toTitleCase } from "./utils";
+import { formatWatts } from "./utils";
 
 const CHAT_LOG_STORAGE_KEY = "greenify.chat_log.v1";
 const MAX_CHAT_LOG_MESSAGES = 80;
@@ -288,29 +288,6 @@ function App() {
     return currentRatePerKwh;
   }, [currentRatePerKwh, monthTotalsFromRuns.costUsd, monthTotalsFromRuns.energyKwh]);
 
-  const topMetrics = [
-    {
-      label: "Home Mode",
-      value: toTitleCase(modeSource?.occupancy ?? "home"),
-    },
-    {
-      label: "Grid Rate",
-      value: `${modeSource?.peak_pricing ? "Peak" : "Standard"} · ${formatCurrency(currentRatePerKwh)}/kWh`,
-    },
-    {
-      label: "Outdoor Temp",
-      value: `${modeSource?.outdoor_temp_f ?? "--"}°F`,
-    },
-    {
-      label: "Live Load",
-      value: formatWatts(displayedState?.total_power_watts ?? 0),
-    },
-    {
-      label: "Optimization Engine",
-      value: optimizerLabel,
-    },
-  ];
-
   const chatPreview = chatLog.slice(-10);
 
   return (
@@ -321,18 +298,13 @@ function App() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]"
         >
-          <div className="panel p-6 sm:p-7">
-            <div className="mb-3 inline-flex rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.26em] text-accent">
-              Greenify Home Energy Optimizer
+          <div className="panel p-4 sm:p-5">
+            <div className="brand-mark">
+              <span className="brand-mark__glyph" aria-hidden="true" />
+              <span className="brand-mark__text">Greenify</span>
             </div>
-            <h1 className="max-w-4xl text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl lg:text-5xl">
-              Safe AI energy decisions with clear impact now, today, and month to date.
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-stone-600 sm:text-base">
-              Enter a plain-English goal, review why the optimizer acted, and track energy and cost savings from each run.
-            </p>
 
-            <div className="mt-5 rounded-2xl border border-stone-900/10 bg-stone-50/85 p-4">
+            <div className="mt-2 rounded-2xl border border-stone-900/10 bg-stone-50/85 p-3.5">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-stone-500">Conversation Memory</div>
                 <button
@@ -448,15 +420,6 @@ function App() {
             </div>
           </div>
         </motion.header>
-
-        <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {topMetrics.map((item) => (
-            <div key={item.label} className="kpi-card">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-stone-500">{item.label}</div>
-              <div className="mt-2 text-base font-semibold text-stone-900">{item.value}</div>
-            </div>
-          ))}
-        </section>
 
         <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
           <div className="space-y-6">
