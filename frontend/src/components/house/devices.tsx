@@ -1,4 +1,5 @@
 import { useFrame } from "@react-three/fiber";
+import { Text } from "@react-three/drei";
 import { useRef } from "react";
 import type { Group, Mesh, PointLight } from "three";
 import { Color } from "three";
@@ -32,11 +33,13 @@ export function Lamp({
   isOn,
   brightness = 1,
   color = "#fef08a",
+  badge,
 }: {
   position: [number, number, number];
   isOn: boolean;
   brightness?: number | null;
   color?: string;
+  badge?: string;
 }) {
   const lightRef = useRef<PointLight>(null);
   const bulbRef = useRef<Mesh>(null);
@@ -54,6 +57,11 @@ export function Lamp({
         <sphereGeometry args={[0.14, 16, 16]} />
         <meshStandardMaterial color={isOn ? "#fff7c2" : "#c8bfb0"} emissive={color} emissiveIntensity={0} />
       </mesh>
+      {badge ? (
+        <Text position={[0, 1.2, 0]} fontSize={0.13} color="#0f766e" anchorX="center" anchorY="middle">
+          {badge}
+        </Text>
+      ) : null}
       <pointLight ref={lightRef} position={[0, 1, 0]} distance={3.2} intensity={0} color={color} />
     </group>
   );
