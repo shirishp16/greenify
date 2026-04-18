@@ -269,6 +269,15 @@ export function HVACUnit({
         ))}
       </group>
       <pointLight ref={glowRef} position={[0, 0.45, 0.8]} distance={2.6} intensity={0} color="#7dd3fc" />
+      <Text
+        position={[0, 1.3, 0]}
+        fontSize={0.2}
+        color="#5c4a3a"
+        anchorX="center"
+        anchorY="middle"
+      >
+        Central HVAC
+      </Text>
     </group>
   );
 }

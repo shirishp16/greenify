@@ -824,6 +824,14 @@ class EnergyAgent:
         if action_type == "turn_off":
             if target_state.is_on:
                 return "turn_off requires is_on=false."
+            if device.type == DeviceType.HVAC:
+                if (
+                    target_state.brightness is not None
+                    or target_state.screen_on is not None
+                    or target_state.rotation_rpm is not None
+                    or target_state.charger_status is not None
+                ):
+                    return "HVAC target_state must have brightness, screen_on, rotation_rpm, and charger_status all null."
             return None
         if action_type == "turn_on":
             if not target_state.is_on:
@@ -833,6 +841,14 @@ class EnergyAgent:
                     return "turn_on for a light/plug needs brightness > 0."
             if device.type == DeviceType.FAN and (target_state.rotation_rpm or 0) <= 0:
                 return "turn_on for a fan needs rotation_rpm > 0."
+            if device.type == DeviceType.HVAC:
+                if (
+                    target_state.brightness is not None
+                    or target_state.screen_on is not None
+                    or target_state.rotation_rpm is not None
+                    or target_state.charger_status is not None
+                ):
+                    return "HVAC target_state must have brightness, screen_on, rotation_rpm, and charger_status all null."
             return None
         if action_type == "screen_off":
             if device.type != DeviceType.SCREEN:
