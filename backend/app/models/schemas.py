@@ -115,10 +115,6 @@ class PlanAndExecuteRequest(BaseModel):
     goal: str
 
 
-class ScenarioResetRequest(BaseModel):
-    scenario_id: Literal["away_mode", "peak_pricing", "sleep_mode"] = "away_mode"
-
-
 class AgentResponse(BaseModel):
     parsed_intent: GoalIntent
     interpreted_goal: str

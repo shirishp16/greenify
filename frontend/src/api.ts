@@ -1,4 +1,4 @@
-import type { AgentResponse, HomeState, ScenarioId } from "./types";
+import type { AgentResponse, HomeState } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -19,13 +19,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getHomeState(): Promise<HomeState> {
   return request<HomeState>("/api/home-state");
-}
-
-export function resetScenario(scenarioId: ScenarioId): Promise<HomeState> {
-  return request<HomeState>("/api/scenario/reset", {
-    method: "POST",
-    body: JSON.stringify({ scenario_id: scenarioId }),
-  });
 }
 
 export function planAndExecute(goal: string): Promise<AgentResponse> {

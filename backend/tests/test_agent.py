@@ -55,7 +55,7 @@ def test_openai_underplanning_recovers_missing_energy_actions() -> None:
 
     action_ids = {action.device_id for action in response.selected_plan}
 
-    assert response.agent_source == "openai"
+    assert response.planner == "llm"
     assert "garage_ev_charger" in action_ids
     assert "office_demo_plug_lamp" in action_ids
     assert "living_room_tv" in action_ids

@@ -107,5 +107,3 @@ export interface AgentResponse {
   planner?: "llm" | "rules";
   planner_notice?: string | null;
 }
-
-export type ScenarioId = "away_mode" | "peak_pricing" | "sleep_mode";

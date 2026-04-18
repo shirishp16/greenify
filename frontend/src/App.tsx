@@ -1,15 +1,13 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { getHomeState, planAndExecute, resetScenario } from "./api";
+import { getHomeState, planAndExecute } from "./api";
 import { HouseScene } from "./components/HouseScene";
 import { SectionCard } from "./components/SectionCard";
-import { scenarioPresets } from "./data/scenarios";
-import type { AgentResponse, HomeState, ScenarioId } from "./types";
+import type { AgentResponse, HomeState } from "./types";
 import { formatClock, formatWatts, toTitleCase } from "./utils";
 
 function App() {
-  const [goal, setGoal] = useState(scenarioPresets[0].goal);
-  const [scenarioId, setScenarioId] = useState<ScenarioId>("away_mode");
+  const [goal, setGoal] = useState("");
   const [displayedState, setDisplayedState] = useState<HomeState | null>(null);
   const [serverState, setServerState] = useState<HomeState | null>(null);
   const [agentRun, setAgentRun] = useState<AgentResponse | null>(null);
@@ -35,32 +33,6 @@ function App() {
       setError(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load home state.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handleScenarioReset(nextScenarioId: ScenarioId) {
-    playbackVersion.current += 1;
-    setIsRunning(false);
-    setScenarioId(nextScenarioId);
-
-    const preset = scenarioPresets.find((item) => item.id === nextScenarioId);
-    if (preset) {
-      setGoal(preset.goal);
-    }
-
-    try {
-      setIsLoading(true);
-      const homeState = await resetScenario(nextScenarioId);
-      setDisplayedState(homeState);
-      setServerState(homeState);
-      setAgentRun(null);
-      setActiveStep(0);
-      setActiveStepLabel("Scenario reset");
-      setError(null);
-    } catch (resetError) {
-      setError(resetError instanceof Error ? resetError.message : "Failed to reset scenario.");
     } finally {
       setIsLoading(false);
     }
@@ -135,7 +107,7 @@ function App() {
             <span className="data-pill">Outdoor: {modeSource?.outdoor_temp_f ?? "--"}°F</span>
             <span className="data-pill">Live load: {formatWatts(displayedState?.total_power_watts ?? 0)}</span>
             <span className="data-pill">
-              Agent: {agentRun ? (agentRun.agent_source === "openai" ? "OpenAI" : "Fallback") : "Standby"}
+              Agent: {agentRun ? (agentRun.planner === "llm" ? "OpenAI" : "Fallback") : "Standby"}
             </span>
           </div>
         </motion.header>
@@ -150,31 +122,16 @@ function App() {
             />
 
             <div className="grid gap-6 lg:grid-cols-3">
-              <SectionCard title="Scenario Controls" eyebrow="Input">
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {scenarioPresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => void handleScenarioReset(preset.id)}
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                        scenarioId === preset.id
-                          ? "bg-accent text-white"
-                          : "border border-stone-900/15 bg-stone-900/5 text-stone-700 hover:bg-stone-900/10"
-                      }`}
-                      disabled={isLoading || isRunning}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-
+              <SectionCard title="Prompt" eyebrow="Input">
+                <p className="mb-4 text-sm leading-6 text-stone-600">
+                  Describe the outcome you want. The agent derives the operating context from the prompt itself.
+                </p>
                 <textarea
                   value={goal}
                   onChange={(event) => setGoal(event.target.value)}
                   rows={5}
                   className="mb-4 w-full rounded-2xl border border-stone-900/10 bg-stone-50/90 p-4 text-sm text-stone-800 outline-none transition focus:border-accent/40 focus:ring-2 focus:ring-accent/15 placeholder:text-stone-400"
-                  placeholder="Describe the outcome you want."
+                  placeholder="Examples: I'm leaving for 3 hours. Reduce energy use but keep the house secure."
                 />
 
                 <button
@@ -268,7 +225,7 @@ function App() {
                 </div>
               ) : null}
               <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/10 p-4 text-sm text-stone-800">
-                {agentRun?.interpreted_goal ?? "Run a scenario to see how Greenify interprets and executes the goal."}
+                {agentRun?.interpreted_goal ?? "Run the agent to see how Greenify interprets and executes the prompt."}
               </div>
 
               <p className="mb-4 text-sm leading-6 text-stone-600">

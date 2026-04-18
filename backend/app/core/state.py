@@ -188,7 +188,7 @@ def build_home_state(scenario_id: str) -> HomeState:
             mode_label="Peak Pricing",
             devices=devices,
         )
-    else:
+    elif scenario_id == "sleep_mode":
         state = HomeState(
             occupancy=Occupancy.HOME,
             current_time="2026-04-17T22:30:00",
@@ -206,20 +206,40 @@ def build_home_state(scenario_id: str) -> HomeState:
                 device.state.rotation_rpm = 120
             if device.id == "living_room_tv":
                 device.state.screen_on = True
+    else:
+        state = HomeState(
+            occupancy=Occupancy.HOME,
+            current_time="2026-04-17T15:00:00",
+            return_time=None,
+            peak_pricing=False,
+            outdoor_temp_f=74,
+            comfort_temp_range=ComfortRange(min_f=67, max_f=75),
+            mode_label="Prompt Driven",
+            devices=devices,
+        )
 
     return with_total_power(state)
 
 
+def build_home_state_from_goal(goal: str) -> HomeState:
+    normalized = goal.lower().strip()
+
+    if "sleep" in normalized:
+        return build_home_state("sleep_mode")
+    if "peak" in normalized or "bill" in normalized:
+        return build_home_state("peak_pricing")
+    if any(marker in normalized for marker in ["away", "leaving", "not home", "out of the house"]):
+        return build_home_state("away_mode")
+
+    return build_home_state("custom")
+
+
 class HomeStateStore:
     def __init__(self) -> None:
-        self._state = build_home_state("away_mode")
+        self._state = build_home_state("custom")
 
     def get_state(self) -> HomeState:
         return deepcopy(self._state)
-
-    def reset(self, scenario_id: str) -> HomeState:
-        self._state = build_home_state(scenario_id)
-        return self.get_state()
 
     def set_state(self, state: HomeState) -> HomeState:
         self._state = with_total_power(state)
