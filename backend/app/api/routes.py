@@ -26,7 +26,11 @@ def get_home_state() -> HomeState:
 @router.post("/agent/plan-and-execute", response_model=AgentResponse)
 def plan_and_execute(payload: PlanAndExecuteRequest) -> AgentResponse:
     current_state = build_home_state_from_goal(payload.goal)
-    response = agent.plan_and_execute(current_state, payload.goal)
+    response = agent.plan_and_execute(
+        current_state,
+        payload.goal,
+        chat_history=payload.chat_history,
+    )
     home_state_store.set_state(response.final_state)
     return response
 

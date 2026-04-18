@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 
-from app.models.schemas import DeviceState, HomeState, SUPPORTED_ACTION_TYPES
+from app.models.schemas import ChatLogMessage, DeviceState, HomeState, SUPPORTED_ACTION_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ class LLMPlan(BaseModel):
 
 SYSTEM_PROMPT = """You are Greenify, the planning brain of a smart-home energy agent.
 You receive (a) the current home state and (b) a user goal in natural language.
+You may also receive recent chat history for context. Treat the newest USER GOAL as highest priority,
+and use history only to resolve ambiguity or carry forward user preferences.
 You must output a JSON plan that the execution layer will apply directly to device state.
 
 RESPONSE FORMAT
@@ -179,7 +181,30 @@ def _is_configured() -> bool:
     return bool(os.getenv("OPENAI_API_KEY", "").strip())
 
 
-def _build_user_prompt(home_state: HomeState, goal: str) -> str:
+def _build_chat_history_block(chat_history: list[ChatLogMessage] | None) -> str:
+    if not chat_history:
+        return "Recent chat history: none."
+
+    recent = chat_history[-12:]
+    lines: list[str] = []
+    for index, message in enumerate(recent, start=1):
+        role = "User" if message.role == "user" else "Assistant"
+        content = message.content.strip()
+        if not content:
+            continue
+        lines.append(f"{index}. {role}: {content}")
+
+    if not lines:
+        return "Recent chat history: none."
+
+    return "RECENT CHAT HISTORY:\n" + "\n".join(lines)
+
+
+def _build_user_prompt(
+    home_state: HomeState,
+    goal: str,
+    chat_history: list[ChatLogMessage] | None = None,
+) -> str:
     devices_payload = [
         {
             "id": device.id,
@@ -212,13 +237,18 @@ def _build_user_prompt(home_state: HomeState, goal: str) -> str:
     return (
         "USER GOAL:\n"
         f"{goal}\n\n"
+        f"{_build_chat_history_block(chat_history)}\n\n"
         "HOME STATE (JSON):\n"
         f"{json.dumps(context, indent=2)}\n\n"
         "Return the JSON plan object now."
     )
 
 
-def plan_with_llm(home_state: HomeState, goal: str) -> tuple[LLMPlan | None, str | None]:
+def plan_with_llm(
+    home_state: HomeState,
+    goal: str,
+    chat_history: list[ChatLogMessage] | None = None,
+) -> tuple[LLMPlan | None, str | None]:
     """Ask the LLM for a plan. Returns (plan, notice).
 
     `plan` is None when the LLM is unavailable or returned something unusable.
@@ -243,7 +273,7 @@ def plan_with_llm(home_state: HomeState, goal: str) -> tuple[LLMPlan | None, str
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": _build_user_prompt(home_state, goal)},
+                {"role": "user", "content": _build_user_prompt(home_state, goal, chat_history=chat_history)},
             ],
         )
     except Exception as exc:

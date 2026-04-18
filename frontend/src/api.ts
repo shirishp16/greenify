@@ -1,4 +1,4 @@
-import type { AgentResponse, HomeState } from "./types";
+import type { AgentResponse, ChatLogMessage, HomeState } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -21,10 +21,10 @@ export function getHomeState(): Promise<HomeState> {
   return request<HomeState>("/api/home-state");
 }
 
-export function planAndExecute(goal: string): Promise<AgentResponse> {
+export function planAndExecute(goal: string, chatHistory: ChatLogMessage[] = []): Promise<AgentResponse> {
   return request<AgentResponse>("/api/agent/plan-and-execute", {
     method: "POST",
-    body: JSON.stringify({ goal }),
+    body: JSON.stringify({ goal, chat_history: chatHistory }),
   });
 }
 

@@ -112,8 +112,15 @@ class HomeStateSnapshot(BaseModel):
     state: HomeState
 
 
+class ChatLogMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: str | None = None
+
+
 class PlanAndExecuteRequest(BaseModel):
     goal: str
+    chat_history: list[ChatLogMessage] = Field(default_factory=list)
 
 
 class AgentResponse(BaseModel):

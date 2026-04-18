@@ -7,6 +7,7 @@ from app.core.llm_planner import LLMPlan, plan_with_llm
 from app.core.state import compute_device_draw, with_total_power
 from app.models.schemas import (
     AgentResponse,
+    ChatLogMessage,
     Device,
     DeviceState,
     DeviceType,
@@ -311,6 +312,52 @@ class EnergyAgent:
         if device.type == DeviceType.EV_CHARGER:
             return device.state.charger_status == target.charger_status
         return device.state.is_on == target.is_on
+
+    def _goal_needs_history(self, goal: str) -> bool:
+        normalized = goal.lower().strip()
+        if not normalized:
+            return False
+        contextual_markers = [
+            "same as",
+            "like before",
+            "as before",
+            "again",
+            "that setup",
+            "that plan",
+            "keep it",
+            "keep that",
+            "do that",
+            "continue",
+        ]
+        if any(marker in normalized for marker in contextual_markers):
+            return True
+        return len(normalized.split()) <= 4
+
+    def _compose_goal_with_history(self, goal: str, chat_history: list[ChatLogMessage] | None) -> str:
+        if not chat_history or not self._goal_needs_history(goal):
+            return goal
+
+        normalized_goal = goal.lower().strip()
+        prior_user_goals = [
+            message.content.strip()
+            for message in chat_history
+            if message.role == "user" and message.content.strip()
+        ]
+        if not prior_user_goals:
+            return goal
+
+        prior = next(
+            (item for item in reversed(prior_user_goals) if item.lower().strip() != normalized_goal),
+            None,
+        )
+        if not prior:
+            return goal
+
+        return (
+            f"{goal}\n\n"
+            "Context from previous user instruction:\n"
+            f"{prior}"
+        )
 
     def parse_goal(self, goal: str, home_state: HomeState) -> GoalIntent:
         normalized = goal.lower().strip()
@@ -978,9 +1025,16 @@ class EnergyAgent:
             parts.append(f"Preserved: {preserved}.")
         return " ".join(parts)
 
-    def plan_and_execute(self, home_state: HomeState, goal: str) -> AgentResponse:
-        intent = self.parse_goal(goal, home_state)
-        llm_plan, llm_notice = plan_with_llm(home_state, goal)
+    def plan_and_execute(
+        self,
+        home_state: HomeState,
+        goal: str,
+        chat_history: list[ChatLogMessage] | None = None,
+    ) -> AgentResponse:
+        goal_for_rules = self._compose_goal_with_history(goal, chat_history)
+        intent = self.parse_goal(goal_for_rules, home_state)
+        intent.raw_goal = goal
+        llm_plan, llm_notice = plan_with_llm(home_state, goal, chat_history=chat_history)
 
         if llm_plan is not None:
             selected_plan, skipped_actions, constraints_applied = self._convert_llm_plan(

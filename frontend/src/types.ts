@@ -78,6 +78,12 @@ export interface HomeStateSnapshot {
   state: HomeState;
 }
 
+export interface ChatLogMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp?: string;
+}
+
 export interface AgentResponse {
   parsed_intent: {
     raw_goal: string;
