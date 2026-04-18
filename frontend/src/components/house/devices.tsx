@@ -1,8 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { Group, Mesh, PointLight } from "three";
-import { Color } from "three";
+import { CatmullRomCurve3, Color, Vector3 } from "three";
 
 function useLerpLight(lightRef: React.RefObject<PointLight | null>, targetIntensity: number) {
   useFrame(() => {
@@ -287,11 +287,11 @@ export function TeslaCar({
     <group position={position}>
       <mesh position={[0, 0.34, 0]} castShadow>
         <boxGeometry args={[1.45, 0.38, 2.5]} />
-        <meshStandardMaterial color="#d7dce2" metalness={0.35} roughness={0.3} />
+        <meshStandardMaterial color="#d12a2a" metalness={0.3} roughness={0.36} />
       </mesh>
       <mesh position={[0, 0.62, -0.05]} castShadow>
         <boxGeometry args={[1.2, 0.28, 1.25]} />
-        <meshStandardMaterial color="#c2c9d1" metalness={0.3} roughness={0.28} />
+        <meshStandardMaterial color="#9f1f1f" metalness={0.28} roughness={0.34} />
       </mesh>
       <mesh ref={accentRef} position={[0.55, 0.34, 1.12]} castShadow>
         <boxGeometry args={[0.08, 0.08, 0.08]} />
@@ -321,23 +321,33 @@ export function ChargingCable({
   end: [number, number, number];
   active: boolean;
 }) {
-  const mid: [number, number, number] = [
-    (start[0] + end[0]) / 2,
-    Math.max(start[1], end[1]) + 0.2,
-    (start[2] + end[2]) / 2,
-  ];
+  const curve = useMemo(() => {
+    const startPoint = new Vector3(...start);
+    const endPoint = new Vector3(...end);
+    const controlA = new Vector3(startPoint.x - 0.08, startPoint.y + 0.22, startPoint.z - 0.35);
+    const controlB = new Vector3(endPoint.x + 0.1, endPoint.y + 0.34, endPoint.z + 0.28);
+    return new CatmullRomCurve3([startPoint, controlA, controlB, endPoint]);
+  }, [start, end]);
 
   return (
     <group>
-      {[start, mid, end].map((point, index) => (
-        <mesh key={`${point.join(",")}-${index}`} position={point} castShadow>
-          <sphereGeometry args={[0.035, 12, 12]} />
-          <meshStandardMaterial color={active ? "#38bdf8" : "#475569"} emissive={active ? "#38bdf8" : "#000000"} emissiveIntensity={active ? 0.7 : 0} />
-        </mesh>
-      ))}
-      <mesh position={mid} castShadow>
-        <boxGeometry args={[0.05, 0.05, Math.hypot(end[2] - start[2], end[0] - start[0])]} />
-        <meshStandardMaterial color={active ? "#0f172a" : "#334155"} />
+      <mesh castShadow>
+        <tubeGeometry args={[curve, 40, 0.022, 12, false]} />
+        <meshStandardMaterial
+          color={active ? "#0f172a" : "#334155"}
+          roughness={0.45}
+          metalness={0.25}
+          emissive={active ? "#38bdf8" : "#000000"}
+          emissiveIntensity={active ? 0.25 : 0}
+        />
+      </mesh>
+      <mesh position={start} castShadow>
+        <sphereGeometry args={[0.028, 12, 12]} />
+        <meshStandardMaterial color="#1f2937" />
+      </mesh>
+      <mesh position={end} castShadow>
+        <sphereGeometry args={[0.03, 12, 12]} />
+        <meshStandardMaterial color={active ? "#16a34a" : "#475569"} emissive={active ? "#16a34a" : "#000000"} emissiveIntensity={active ? 0.65 : 0} />
       </mesh>
     </group>
   );

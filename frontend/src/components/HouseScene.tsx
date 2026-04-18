@@ -174,8 +174,8 @@ function HouseModel({
         <EVCharger position={[0.95, -1.15, 1.35]} status={charger?.state.charger_status ?? "paused"} />
         <TeslaCar position={[-0.1, -1.17, -0.68]} isCharging={evIsCharging} />
         <ChargingCable
-          start={[1.07, -0.42, 1.56]}
-          end={[0.77, -0.61, -1.71]}
+          start={[0.95, -0.23, 1.56]}
+          end={[0.45, -0.83, 0.44]}
           active={evIsCharging}
         />
         {/* Garage floor mat */}
@@ -224,7 +224,7 @@ function HouseModel({
         scheduled={porchLight?.state.scheduled}
       />
 
-      <HVACUnit position={[4.2, 0.3, 2.5]} isOn={Boolean(hvac?.state.is_on)} />
+      <HVACUnit position={[5.35, -0.02, -0.5]} isOn={Boolean(hvac?.state.is_on)} />
 
       {/* Ground slab */}
       <mesh position={[0.35, -0.08, 0.2]} receiveShadow>
