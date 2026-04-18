@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from copy import deepcopy
 
+from app.core.llm_planner import LLMPlan, plan_with_llm
 from app.core.state import compute_device_draw, with_total_power
 from app.models.schemas import (
     AgentResponse,
@@ -210,7 +211,7 @@ class EnergyAgent:
             bonus = 0
             if intent.mode == "away_mode" and action.action_type in {"turn_off", "screen_off", "pause_charging"}:
                 bonus += 20
-            if intent.mode == "peak_pricing" and action.device_id == "garage_ev_charger":
+            if intent.mode == "peak_pricing" and action.action_type == "pause_charging":
                 bonus += 40
             if intent.mode == "sleep_mode" and "bedroom" in action.description.lower():
                 bonus += 15
@@ -225,31 +226,208 @@ class EnergyAgent:
                 device.state = action.target_state.model_copy(deep=True)
         return with_total_power(updated)
 
-    def plan_and_execute(self, home_state: HomeState, goal: str) -> AgentResponse:
-        intent = self.parse_goal(goal, home_state)
-        candidates, skipped_actions, constraints_applied = self._candidate_actions(home_state, intent)
-        selected_plan = self._prioritize(candidates, intent)
+    def _validate_action_against_device(
+        self, device: Device, action_type: str, target_state: DeviceState
+    ) -> str | None:
+        """Return None if the action/target_state is internally consistent, else a reason string."""
+        if action_type == "turn_off":
+            if target_state.is_on:
+                return "turn_off requires is_on=false."
+            return None
+        if action_type == "turn_on":
+            if not target_state.is_on:
+                return "turn_on requires is_on=true."
+            if device.type in {DeviceType.LIGHT, DeviceType.SMART_PLUG}:
+                if target_state.brightness is None or target_state.brightness <= 0:
+                    return "turn_on for a light/plug needs brightness > 0."
+            if device.type == DeviceType.FAN and (target_state.rotation_rpm or 0) <= 0:
+                return "turn_on for a fan needs rotation_rpm > 0."
+            return None
+        if action_type == "screen_off":
+            if device.type != DeviceType.SCREEN:
+                return "screen_off only applies to screens."
+            if target_state.is_on or target_state.screen_on:
+                return "screen_off requires is_on=false and screen_on=false."
+            return None
+        if action_type == "set_brightness":
+            if device.type not in {DeviceType.LIGHT, DeviceType.SMART_PLUG}:
+                return "set_brightness only applies to lights and smart plugs."
+            if not target_state.is_on:
+                return "set_brightness requires is_on=true (use turn_off to power down)."
+            if target_state.brightness is None or not (0 < target_state.brightness <= 1):
+                return "set_brightness requires brightness in (0, 1]."
+            return None
+        if action_type == "set_fan_speed":
+            if device.type != DeviceType.FAN:
+                return "set_fan_speed only applies to fans."
+            rpm = target_state.rotation_rpm
+            if rpm is None or rpm < 0:
+                return "set_fan_speed requires rotation_rpm >= 0."
+            if rpm == 0 and target_state.is_on:
+                return "set_fan_speed with rpm=0 must also set is_on=false."
+            if rpm > 0 and not target_state.is_on:
+                return "set_fan_speed with rpm>0 must set is_on=true."
+            return None
+        if action_type == "pause_charging":
+            if device.type != DeviceType.EV_CHARGER:
+                return "pause_charging only applies to EV chargers."
+            if target_state.is_on or target_state.charger_status != "paused":
+                return "pause_charging requires is_on=false and charger_status='paused'."
+            return None
+        if action_type == "resume_charging":
+            if device.type != DeviceType.EV_CHARGER:
+                return "resume_charging only applies to EV chargers."
+            if not target_state.is_on or target_state.charger_status != "charging":
+                return "resume_charging requires is_on=true and charger_status='charging'."
+            return None
+        return f"Unsupported action_type '{action_type}'."
 
-        assumptions = [
-            "Home state telemetry is current at request time.",
-            "Occupancy and pricing signals are trusted inputs.",
-            "The demo smart plug lamp is reachable through the configured adapter.",
+    def _convert_llm_plan(
+        self, home_state: HomeState, llm_plan: LLMPlan
+    ) -> tuple[list[PlanAction], list[SkippedAction], list[str]]:
+        device_map = {device.id: device for device in home_state.devices}
+        selected: list[PlanAction] = []
+        skipped: list[SkippedAction] = [
+            SkippedAction(device_id=item.device_id, title=item.title, reason=item.reason)
+            for item in llm_plan.skipped
+        ]
+        constraints = list(llm_plan.constraints_applied) or [
+            "LLM planner did not report any explicit constraints."
         ]
 
-        interpreted_goal = (
-            f"Mode `{intent.mode}` for goal '{intent.raw_goal}'. "
-            f"Preserve security={intent.preserve_security}, preserve comfort={intent.preserve_comfort}, "
-            f"cost sensitive={intent.cost_sensitive}."
+        for index, action in enumerate(llm_plan.plan, start=1):
+            device = device_map.get(action.device_id)
+            if device is None:
+                skipped.append(
+                    SkippedAction(
+                        device_id=action.device_id,
+                        title=f"Drop action for {action.device_id}",
+                        reason="Unknown device id produced by LLM.",
+                    )
+                )
+                continue
+            if not device.remote_controllable:
+                skipped.append(
+                    SkippedAction(
+                        device_id=device.id,
+                        title=f"Skip {device.name}",
+                        reason="Device is not remote-controllable.",
+                    )
+                )
+                continue
+            if device.essential and not action.target_state.is_on:
+                skipped.append(
+                    SkippedAction(
+                        device_id=device.id,
+                        title=f"Preserve {device.name}",
+                        reason="Essential appliance cannot be turned off.",
+                    )
+                )
+                continue
+            failure = self._validate_action_against_device(
+                device, action.action_type, action.target_state
+            )
+            if failure is not None:
+                skipped.append(
+                    SkippedAction(
+                        device_id=device.id,
+                        title=f"Reject {action.title}",
+                        reason=failure,
+                    )
+                )
+                continue
+
+            selected.append(
+                PlanAction(
+                    id=f"action_{device.id}_{action.action_type}_{index}",
+                    device_id=device.id,
+                    title=action.title,
+                    description=action.description,
+                    reason=action.reason,
+                    estimated_savings_watts=float(action.estimated_savings_watts),
+                    action_type=action.action_type,
+                    target_state=action.target_state,
+                    priority=action.priority,
+                )
+            )
+
+        selected.sort(key=lambda a: a.priority)
+        return selected, skipped, constraints
+
+    def _rules_assumptions(self, home_state: HomeState) -> list[str]:
+        items = [
+            f"Occupancy is '{home_state.occupancy.value}' at {home_state.current_time}.",
+        ]
+        items.append(
+            "Utility peak-pricing window is active — watts saved convert directly to cost saved."
+            if home_state.peak_pricing
+            else "Pricing is off-peak; savings are energy-only rather than cost-urgent."
         )
+        items.append(
+            f"Outdoor temperature is {home_state.outdoor_temp_f}°F against comfort band "
+            f"{home_state.comfort_temp_range.min_f}–{home_state.comfort_temp_range.max_f}°F."
+        )
+        if home_state.return_time:
+            items.append(f"Resident returns at {home_state.return_time}.")
+        return items
+
+    def _rules_reasoning_summary(
+        self,
+        intent: GoalIntent,
+        selected_plan: list[PlanAction],
+        skipped_actions: list[SkippedAction],
+    ) -> str:
+        mode_label = {
+            "sleep_mode": "sleep-prep",
+            "away_mode": "away",
+            "peak_pricing": "peak-pricing",
+            "custom": "custom",
+        }.get(intent.mode, intent.mode)
+        total_saved = round(sum(a.estimated_savings_watts for a in selected_plan), 1)
+        parts = [
+            f"Rules planner ran {mode_label} mode and selected {len(selected_plan)} action(s) "
+            f"for an estimated {total_saved}W reduction."
+        ]
+        if skipped_actions:
+            preserved = "; ".join(item.title for item in skipped_actions[:3])
+            parts.append(f"Preserved: {preserved}.")
+        return " ".join(parts)
+
+    def plan_and_execute(self, home_state: HomeState, goal: str) -> AgentResponse:
+        intent = self.parse_goal(goal, home_state)
+        llm_plan, llm_notice = plan_with_llm(home_state, goal)
+
+        if llm_plan is not None:
+            selected_plan, skipped_actions, constraints_applied = self._convert_llm_plan(
+                home_state, llm_plan
+            )
+            assumptions = list(llm_plan.assumptions) or self._rules_assumptions(home_state)
+            reasoning_summary = llm_plan.reasoning_summary
+            interpreted_goal = llm_plan.interpreted_goal
+            planner_label = "llm"
+            planner_notice: str | None = None
+        else:
+            candidates, skipped_actions, constraints_applied = self._candidate_actions(home_state, intent)
+            selected_plan = self._prioritize(candidates, intent)
+            assumptions = self._rules_assumptions(home_state)
+            reasoning_summary = self._rules_reasoning_summary(intent, selected_plan, skipped_actions)
+            interpreted_goal = (
+                f"Mode `{intent.mode}` for goal '{intent.raw_goal}'. "
+                f"Preserve security={intent.preserve_security}, preserve comfort={intent.preserve_comfort}, "
+                f"cost sensitive={intent.cost_sensitive}."
+            )
+            planner_label = "rules"
+            planner_notice = llm_notice
 
         snapshots = [HomeStateSnapshot(step=0, label="Initial state", state=home_state.model_copy(deep=True))]
         execution_results: list[ExecutionResult] = []
         current_state = home_state.model_copy(deep=True)
 
         for index, action in enumerate(selected_plan, start=1):
-            plug_message = None
-            device = next(device for device in current_state.devices if device.id == action.device_id)
-            if device.real_device:
+            plug_message: str | None = None
+            device = next(d for d in current_state.devices if d.id == action.device_id)
+            prior_is_on = device.state.is_on
+            if device.real_device and action.target_state.is_on != prior_is_on:
                 plug_result = self.smart_plug_service.set_power(device.id, action.target_state.is_on)
                 plug_message = plug_result.message
 
@@ -277,11 +455,6 @@ class EnergyAgent:
         watts_after = current_state.total_power_watts
         watts_saved = round(watts_before - watts_after, 2)
 
-        reasoning_summary = (
-            "The agent ranked flexible loads first, preserved essential and security-related devices, "
-            "and chose high-savings actions that fit the active mode without violating comfort constraints."
-        )
-
         return AgentResponse(
             interpreted_goal=interpreted_goal,
             assumptions=assumptions,
@@ -296,4 +469,6 @@ class EnergyAgent:
             watts_before=watts_before,
             watts_after=watts_after,
             watts_saved=watts_saved,
+            planner=planner_label,
+            planner_notice=planner_notice,
         )
