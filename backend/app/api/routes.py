@@ -5,11 +5,12 @@ from fastapi import APIRouter
 from app.core.agent import EnergyAgent
 from app.core.state import home_state_store
 from app.models.schemas import AgentResponse, HomeState, PlanAndExecuteRequest, ScenarioResetRequest
+from app.services.openai_agent import OpenAIPlanner
 from app.services.smart_plug import build_smart_plug_service
 
 
 router = APIRouter(prefix="/api")
-agent = EnergyAgent(smart_plug_service=build_smart_plug_service())
+agent = EnergyAgent(smart_plug_service=build_smart_plug_service(), openai_planner=OpenAIPlanner())
 
 
 @router.get("/health")
