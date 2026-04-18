@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import type { HomeState } from "../types";
 import { RoomShell } from "./house/RoomShell";
-import { EVCharger, Fan, Fridge, Lamp, PorchLight, ScreenDevice } from "./house/devices";
+import { Dishwasher, Dryer, EVCharger, Fan, Fridge, Lamp, PorchLight, ScreenDevice, Washer } from "./house/devices";
 
 interface HouseSceneProps {
   homeState: HomeState | null;
@@ -27,6 +27,9 @@ function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; 
   const smartPlugLamp = findDevice(homeState, "office_demo_plug_lamp");
   const charger = findDevice(homeState, "garage_ev_charger");
   const porchLight = findDevice(homeState, "porch_light");
+  const dishwasher = findDevice(homeState, "kitchen_dishwasher");
+  const washer = findDevice(homeState, "laundry_washer");
+  const dryer = findDevice(homeState, "laundry_dryer");
 
   return (
     <group position={[0, -0.4, 0]}>
@@ -56,6 +59,7 @@ function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; 
       >
         <Lamp position={[-0.55, -0.95, 0.5]} isOn={Boolean(kitchenLight?.state.is_on)} brightness={kitchenLight?.state.brightness} />
         <Fridge position={[0.95, -1.15, -0.25]} />
+        <Dishwasher position={[-0.88, -1.08, -0.38]} isOn={Boolean(dishwasher?.state.is_on)} />
         {/* Counter */}
         <mesh position={[-0.1, -1.08, -0.4]} castShadow>
           <boxGeometry args={[1.3, 0.18, 0.7]} />
@@ -120,6 +124,12 @@ function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; 
           <boxGeometry args={[1.1, 0.12, 0.65]} />
           <meshStandardMaterial color="#8b7355" roughness={0.6} />
         </mesh>
+      </RoomShell>
+
+      {/* ── LAUNDRY (second floor, right of Office) ── */}
+      <RoomShell position={[2.5, 3.85, -1.6]} size={[1.6, 2.4, 2.8]} label="Laundry" accent="#9090a8">
+        <Washer position={[-0.27, -1.08, -0.28]} isOn={Boolean(washer?.state.is_on)} />
+        <Dryer position={[0.27, -1.08, -0.28]} isOn={Boolean(dryer?.state.is_on)} />
       </RoomShell>
 
       {/* ── GARAGE (first floor, right wing) ── */}

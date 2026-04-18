@@ -5,7 +5,7 @@ from copy import deepcopy
 from app.models.schemas import ComfortRange, Device, DeviceState, DeviceType, HomeState, Occupancy
 
 
-ROOMS = ["living room", "kitchen", "bedroom", "office", "garage", "exterior"]
+ROOMS = ["living room", "kitchen", "bedroom", "office", "garage", "laundry", "exterior"]
 
 
 def compute_device_draw(device: Device) -> float:
@@ -130,6 +130,36 @@ def _base_devices() -> list[Device]:
             power_watts=18,
             security_related=True,
             notes="Preserved when the home is away for visibility and security.",
+        ),
+        Device(
+            id="kitchen_dishwasher",
+            name="Dishwasher",
+            room="kitchen",
+            type=DeviceType.APPLIANCE,
+            state=DeviceState(is_on=False),
+            power_watts=1200,
+            can_defer=True,
+            notes="High-draw appliance that runs on a schedule. Safe to defer during peak pricing or away mode.",
+        ),
+        Device(
+            id="laundry_washer",
+            name="Washing Machine",
+            room="laundry",
+            type=DeviceType.APPLIANCE,
+            state=DeviceState(is_on=True),
+            power_watts=500,
+            can_defer=True,
+            notes="Can be paused mid-cycle and resumed later. Good candidate for off-peak scheduling.",
+        ),
+        Device(
+            id="laundry_dryer",
+            name="Dryer",
+            room="laundry",
+            type=DeviceType.APPLIANCE,
+            state=DeviceState(is_on=False),
+            power_watts=5000,
+            can_defer=True,
+            notes="High-draw appliance. Ideal to defer to off-peak hours; typically runs after washer completes.",
         ),
     ]
 

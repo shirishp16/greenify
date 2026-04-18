@@ -92,11 +92,13 @@ ALLOWED action_type VALUES (closed set — anything else will be rejected)
                          For screens also set screen_on=false.
                          For fans also set rotation_rpm=0.
                          For EV chargers use "pause_charging" instead.
-- "turn_on"           — applies to light | screen | fan | smart_plug.
+- "turn_on"           — applies to light | screen | fan | smart_plug | appliance.
                          target_state MUST have is_on=true.
                          For lights/plugs set brightness in (0.0, 1.0]. For security lights in away mode prefer >= 0.8.
                          For screens set screen_on=true.
                          For fans set rotation_rpm > 0.
+                         For appliance devices (washer, dryer, dishwasher): no brightness/rpm/screen_on needed.
+                           Set brightness=null, screen_on=null, rotation_rpm=null, charger_status=null.
 - "screen_off"        — applies to screen only.
                          target_state: is_on=false, screen_on=false.
 - "set_brightness"    — applies to light | smart_plug only. Use for dimming that keeps the device ON.
@@ -131,6 +133,10 @@ PLANNING GUIDANCE
 - Respect `comfort_related` devices: prefer "set_brightness" / "set_fan_speed" reductions over hard off,
   when the resident is present. When the home is asleep or away, full off is acceptable.
 - Order `plan` by impact: highest-watt reductions first.
+- Devices of type `appliance` (washer, dryer, dishwasher) use only `turn_on` and `turn_off`.
+  They have no brightness, rotation_rpm, screen_on, or charger_status. All those fields must be null.
+  They are all `can_defer=true` — good candidates for peak-pricing and away-mode deferral.
+  The dryer (5000W) and dishwasher (1200W) are high-draw; the washer (500W) is moderate.
 - `estimated_savings_watts` should reflect the instantaneous watts no longer drawn. For "turn_on" or brightness
   increases, this may be 0 or negative.
 - `constraints_applied` must describe constraints that actually shaped THIS plan (no boilerplate).

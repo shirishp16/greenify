@@ -539,6 +539,23 @@ class EnergyAgent:
 
             candidates.append(self._build_action(device, intent, target))
 
+            if device.type == DeviceType.APPLIANCE and device.state.is_on:
+                off_state = device.state.model_copy(deep=True)
+                off_state.is_on = False
+                candidates.append(
+                    PlanAction(
+                        id=f"action_{device.id}_off",
+                        device_id=device.id,
+                        title=f"Turn off {device.name}",
+                        description=f"Pause {device.name} to reduce power draw.",
+                        reason="Deferrable appliance can be paused without comfort impact in this scenario.",
+                        estimated_savings_watts=current_draw,
+                        action_type="turn_off",
+                        target_state=off_state,
+                        priority=1,
+                    )
+                )
+
         return candidates, skipped, constraints_applied
 
     def _prioritize(self, candidates: list[PlanAction], intent: GoalIntent, home_state: HomeState) -> list[PlanAction]:

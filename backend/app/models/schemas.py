@@ -19,6 +19,7 @@ class DeviceType(str, Enum):
     FRIDGE = "fridge"
     EV_CHARGER = "ev_charger"
     SMART_PLUG = "smart_plug"
+    APPLIANCE = "appliance"
 
 
 class GoalIntent(BaseModel):
