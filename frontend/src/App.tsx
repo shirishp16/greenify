@@ -75,6 +75,13 @@ function App() {
     setActiveStepLabel(response.snapshots[0]?.label ?? "Initial state");
     setDisplayedState(response.initial_state);
 
+    if (response.snapshots.length === 0) {
+      setDisplayedState(response.final_state);
+      setServerState(response.final_state);
+      setIsRunning(false);
+      return;
+    }
+
     for (const snapshot of response.snapshots) {
       if (version !== playbackVersion.current) {
         setIsRunning(false);
@@ -244,6 +251,22 @@ function App() {
 
           <div className="space-y-6">
             <SectionCard title="Agent Reasoning" eyebrow="Interpretation" className="border-l-2 border-l-accent/30">
+              {agentRun ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`data-pill ${
+                      agentRun.planner === "llm"
+                        ? "border-accent/30 bg-accent/15 text-accent"
+                        : "border-danger/30 bg-danger/15 text-danger"
+                    }`}
+                  >
+                    {agentRun.planner === "llm" ? "Planner: OpenAI (live)" : "Planner: Emergency fallback"}
+                  </span>
+                  {agentRun.planner_notice ? (
+                    <span className="text-xs text-stone-500">{agentRun.planner_notice}</span>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/10 p-4 text-sm text-stone-800">
                 {agentRun?.interpreted_goal ?? "Run a scenario to see how Greenify interprets and executes the goal."}
               </div>

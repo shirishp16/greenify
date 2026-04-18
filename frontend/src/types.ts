@@ -104,7 +104,8 @@ export interface AgentResponse {
   watts_before: number;
   watts_after: number;
   watts_saved: number;
-  agent_source: "openai" | "fallback";
+  planner?: "llm" | "rules";
+  planner_notice?: string | null;
 }
 
 export type ScenarioId = "away_mode" | "peak_pricing" | "sleep_mode";

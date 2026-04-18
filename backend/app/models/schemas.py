@@ -133,4 +133,16 @@ class AgentResponse(BaseModel):
     watts_before: float
     watts_after: float
     watts_saved: float
-    agent_source: Literal["openai", "fallback"]
+    planner: Literal["llm", "rules"] = "rules"
+    planner_notice: str | None = None
+
+
+SUPPORTED_ACTION_TYPES = {
+    "turn_off",
+    "turn_on",
+    "screen_off",
+    "set_brightness",
+    "set_fan_speed",
+    "pause_charging",
+    "resume_charging",
+}
