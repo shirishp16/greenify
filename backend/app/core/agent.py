@@ -994,7 +994,198 @@ class EnergyAgent:
             parts.append(f"Preserved: {preserved}.")
         return " ".join(parts)
 
+    # ------------------------------------------------------------------
+    # Direct-command fast path
+    #
+    # Intent: for a simple imperative like "turn on the office light" the
+    # agent should fire the real device immediately and return without ever
+    # consulting the LLM. Crucially, for devices flagged real_device=True
+    # we IGNORE the simulated is_on value — the hardware state is
+    # authoritative and the sim can drift (user toggles the plug from the
+    # Apple Home app, plug fell offline, etc.). This is what prevents the
+    # "already on, skipping" false negative.
+    # ------------------------------------------------------------------
+
+    DIRECT_INTENT_PATTERNS = (
+        re.compile(r"\b(?:turn|switch|flip|toggle)\s+(?:the\s+)?(?P<target>.+?)\s+(?P<verb>on|off)\b"),
+        re.compile(r"\b(?:turn|switch|flip|put)\s+(?P<verb>on|off)\s+(?:the\s+)?(?P<target>.+?)\s*$"),
+        re.compile(r"\bi\s+(?:want|need)\s+(?:the\s+)?(?P<target>.+?)\s+(?P<verb>on|off)\b"),
+        re.compile(r"^\s*(?P<target>.+?)\s+(?P<verb>on|off)\s*[.!?]?\s*$"),
+    )
+
+    DEVICE_TYPE_KEYWORDS = {
+        DeviceType.LIGHT: ("light", "lamp", "bulb", "lighting"),
+        DeviceType.SMART_PLUG: ("plug", "outlet", "socket", "lamp", "light"),
+        DeviceType.SCREEN: ("tv", "television", "monitor", "screen", "display"),
+        DeviceType.FAN: ("fan",),
+        DeviceType.FRIDGE: ("fridge", "refrigerator"),
+        DeviceType.EV_CHARGER: ("ev", "charger", "car charger"),
+        DeviceType.HVAC: ("hvac", "ac", "a/c", "air conditioning", "heat", "heater", "heating", "cooling", "thermostat"),
+        DeviceType.APPLIANCE: ("washer", "dryer", "dishwasher", "laundry", "washing machine"),
+    }
+
+    def _resolve_device(self, phrase: str, home_state: HomeState) -> Device | None:
+        """Pick the best-matching device for a free-text phrase like "office light".
+
+        Scoring: exact name/id hits, then room+type match, then room alone,
+        then type alone. Ties break by higher power_watts (more "interesting" device).
+        """
+        tokens = [t for t in re.findall(r"[a-z0-9]+", phrase.lower()) if t]
+        if not tokens:
+            return None
+        phrase_norm = " ".join(tokens)
+
+        def score(device: Device) -> tuple[int, float]:
+            name_tokens = set(re.findall(r"[a-z0-9]+", device.name.lower()))
+            id_tokens = set(device.id.split("_"))
+            room_tokens = set(re.findall(r"[a-z]+", device.room.lower()))
+            type_keywords = self.DEVICE_TYPE_KEYWORDS.get(device.type, ())
+            s = 0
+            if device.name.lower() == phrase_norm or device.id == phrase_norm.replace(" ", "_"):
+                s += 100
+            s += 3 * len(set(tokens) & name_tokens)
+            s += 2 * len(set(tokens) & id_tokens)
+            if room_tokens & set(tokens):
+                s += 4
+            if any(keyword in phrase_norm for keyword in type_keywords):
+                s += 3
+                if room_tokens & set(tokens):
+                    s += 3  # room + type match is the strongest signal
+            return (s, device.power_watts)
+
+        ranked = sorted(home_state.devices, key=score, reverse=True)
+        best = ranked[0]
+        if score(best)[0] <= 0:
+            return None
+        return best
+
+    def _parse_direct_command(self, goal: str) -> tuple[str, bool] | None:
+        text = goal.lower().strip()
+        # Reject multi-clause goals — those should go through the planner.
+        if re.search(r"\b(and|then|also|,|;)\b", text):
+            return None
+        for pattern in self.DIRECT_INTENT_PATTERNS:
+            match = pattern.search(text)
+            if not match:
+                continue
+            target = match.group("target").strip(" .!?,")
+            if not target:
+                continue
+            return target, match.group("verb") == "on"
+        return None
+
+    def _target_state_for_power(self, device: Device, turn_on: bool) -> DeviceState:
+        target = device.state.model_copy(deep=True)
+        target.is_on = turn_on
+        if device.type in {DeviceType.LIGHT, DeviceType.SMART_PLUG}:
+            target.brightness = 1.0 if turn_on else 0
+        elif device.type == DeviceType.SCREEN:
+            target.screen_on = turn_on
+        elif device.type == DeviceType.FAN:
+            target.rotation_rpm = 120 if turn_on else 0
+        elif device.type == DeviceType.EV_CHARGER:
+            target.charger_status = "charging" if turn_on else "paused"
+        target.scheduled = False
+        target.schedule_note = None
+        return target
+
+    def _direct_command_response(
+        self, home_state: HomeState, goal: str, device: Device, turn_on: bool
+    ) -> AgentResponse:
+        target = self._target_state_for_power(device, turn_on)
+
+        # Force-fire real hardware regardless of simulated state — the hardware
+        # is the source of truth, the sim is not.
+        plug_message: str | None = None
+        if device.real_device:
+            plug_message = self.smart_plug_service.set_power(device.id, turn_on).message
+
+        action = PlanAction(
+            id=f"action_{device.id}_tool_set_power_{'on' if turn_on else 'off'}",
+            device_id=device.id,
+            title=f"{'Turn on' if turn_on else 'Turn off'} {device.name}",
+            description=f"Direct command fired {device.name} -> {'on' if turn_on else 'off'}.",
+            reason=f"User issued a direct imperative for {device.name}.",
+            estimated_savings_watts=round(
+                max(compute_device_draw(device) - compute_device_draw(device.model_copy(update={"state": target})), 0),
+                2,
+            ),
+            action_type="turn_on" if turn_on else "turn_off",
+            target_state=target,
+            priority=1,
+        )
+
+        # Apply to state
+        current_state = home_state.model_copy(deep=True)
+        for d in current_state.devices:
+            if d.id == device.id:
+                d.state = target.model_copy(deep=True)
+        current_state = with_total_power(current_state)
+
+        execution_message = (
+            f"{action.description} {plug_message}" if plug_message else f"{action.description} Simulation updated."
+        )
+
+        snapshots = [
+            HomeStateSnapshot(step=0, label="Initial state", state=home_state.model_copy(deep=True)),
+            HomeStateSnapshot(step=1, label=action.title, state=current_state.model_copy(deep=True)),
+        ]
+
+        intent = GoalIntent(
+            raw_goal=goal,
+            mode="custom",
+            activity="general",
+            preserve_security=False,
+            preserve_comfort=False,
+            cost_sensitive=False,
+            prioritize_sleep=False,
+            protected_rooms=[],
+            action_scope=[device.type.value],
+        )
+
+        return AgentResponse(
+            parsed_intent=intent,
+            interpreted_goal=f"Direct command: {'turn on' if turn_on else 'turn off'} {device.name}.",
+            assumptions=[
+                "Direct imperative path — no planning required.",
+                "For real devices the hardware call fires unconditionally; simulated state is not trusted as authoritative.",
+            ],
+            constraints_applied=[],
+            reasoning_summary=(
+                f"The agent used the set_device_power tool directly on {device.name}. "
+                f"{'Real plug call sent.' if device.real_device else 'Simulation only (not a real device).'}"
+            ),
+            skipped_actions=[],
+            selected_plan=[action],
+            execution_results=[
+                ExecutionResult(
+                    action_id=action.id,
+                    device_id=device.id,
+                    title=action.title,
+                    status="executed",
+                    message=execution_message,
+                    resulting_power_watts=current_state.total_power_watts,
+                )
+            ],
+            initial_state=home_state,
+            final_state=current_state,
+            snapshots=snapshots,
+            watts_before=home_state.total_power_watts,
+            watts_after=current_state.total_power_watts,
+            watts_saved=round(home_state.total_power_watts - current_state.total_power_watts, 2),
+            planner="rules",
+            planner_notice="Direct command — agent used the set_device_power tool immediately.",
+        )
+
     def plan_and_execute(self, home_state: HomeState, goal: str) -> AgentResponse:
+        # Fast-path: direct imperative commands skip the LLM entirely.
+        parsed = self._parse_direct_command(goal)
+        if parsed is not None:
+            target_phrase, turn_on = parsed
+            device = self._resolve_device(target_phrase, home_state)
+            if device is not None and device.remote_controllable:
+                return self._direct_command_response(home_state, goal, device, turn_on)
+
         intent = self.parse_goal(goal, home_state)
         llm_plan, llm_notice = plan_with_llm(home_state, goal)
 
