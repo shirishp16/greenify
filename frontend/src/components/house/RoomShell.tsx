@@ -7,13 +7,20 @@ interface RoomShellProps {
   label: string;
   children?: ReactNode;
   accent?: string;
+  highlighted?: boolean;
 }
 
-export function RoomShell({ position, size, label, children, accent = "#b8956a" }: RoomShellProps) {
+export function RoomShell({ position, size, label, children, accent = "#b8956a", highlighted = false }: RoomShellProps) {
   const [width, height, depth] = size;
 
   return (
     <group position={position}>
+      {highlighted ? (
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[width + 0.14, height + 0.14, depth + 0.14]} />
+          <meshStandardMaterial color="#5eead4" transparent opacity={0.1} emissive="#5eead4" emissiveIntensity={0.4} />
+        </mesh>
+      ) : null}
       {/* Floor */}
       <mesh position={[0, -height / 2, 0]} receiveShadow>
         <boxGeometry args={[width, 0.15, depth]} />
@@ -37,7 +44,7 @@ export function RoomShell({ position, size, label, children, accent = "#b8956a" 
       <Text
         position={[0, height / 2 + 0.3, depth / 2 - 0.3]}
         fontSize={0.28}
-        color="#5c4a3a"
+        color={highlighted ? "#0f766e" : "#5c4a3a"}
         anchorX="center"
         anchorY="middle"
       >
