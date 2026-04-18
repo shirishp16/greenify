@@ -25,10 +25,13 @@ class GoalIntent(BaseModel):
     raw_goal: str
     mode: Literal["away_mode", "peak_pricing", "sleep_mode", "custom"]
     duration_hours: float | None = None
+    activity: Literal["working", "cooking", "relaxing", "sleeping", "general"]
     preserve_security: bool = True
     preserve_comfort: bool = True
     cost_sensitive: bool = False
     prioritize_sleep: bool = False
+    protected_rooms: list[str] = []
+    action_scope: list[str] = []
 
 
 class DeviceState(BaseModel):
@@ -116,6 +119,7 @@ class ScenarioResetRequest(BaseModel):
 
 
 class AgentResponse(BaseModel):
+    parsed_intent: GoalIntent
     interpreted_goal: str
     assumptions: list[str]
     constraints_applied: list[str]
@@ -129,3 +133,4 @@ class AgentResponse(BaseModel):
     watts_before: float
     watts_after: float
     watts_saved: float
+    agent_source: Literal["openai", "fallback"]

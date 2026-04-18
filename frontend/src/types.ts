@@ -79,6 +79,18 @@ export interface HomeStateSnapshot {
 }
 
 export interface AgentResponse {
+  parsed_intent: {
+    raw_goal: string;
+    mode: "away_mode" | "peak_pricing" | "sleep_mode" | "custom";
+    duration_hours: number | null;
+    activity: "working" | "cooking" | "relaxing" | "sleeping" | "general";
+    preserve_security: boolean;
+    preserve_comfort: boolean;
+    cost_sensitive: boolean;
+    prioritize_sleep: boolean;
+    protected_rooms: string[];
+    action_scope: string[];
+  };
   interpreted_goal: string;
   assumptions: string[];
   constraints_applied: string[];
@@ -92,6 +104,7 @@ export interface AgentResponse {
   watts_before: number;
   watts_after: number;
   watts_saved: number;
+  agent_source: "openai" | "fallback";
 }
 
 export type ScenarioId = "away_mode" | "peak_pricing" | "sleep_mode";

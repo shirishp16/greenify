@@ -122,12 +122,20 @@ function App() {
             <span className="data-pill">Peak pricing: {modeSource?.peak_pricing ? "Active" : "Off"}</span>
             <span className="data-pill">Outdoor: {modeSource?.outdoor_temp_f ?? "--"}°F</span>
             <span className="data-pill">Live load: {formatWatts(displayedState?.total_power_watts ?? 0)}</span>
+            <span className="data-pill">
+              Agent: {agentRun ? (agentRun.agent_source === "openai" ? "OpenAI" : "Fallback") : "Standby"}
+            </span>
           </div>
         </motion.header>
 
         <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
           <div className="space-y-6">
-            <HouseScene homeState={displayedState} activeStepLabel={isLoading ? "Loading" : activeStepLabel} />
+            <HouseScene
+              homeState={displayedState}
+              activeStepLabel={isLoading ? "Loading" : activeStepLabel}
+              protectedRooms={agentRun?.parsed_intent.protected_rooms ?? []}
+              actionScope={agentRun?.parsed_intent.action_scope ?? []}
+            />
 
             <div className="grid gap-6 lg:grid-cols-3">
               <SectionCard title="Scenario Controls" eyebrow="Input">
@@ -185,6 +193,18 @@ function App() {
                     <span className="font-medium text-stone-900">
                       {modeSource ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F` : "--"}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
+                    <span>Protected rooms</span>
+                    <span className="font-medium text-stone-900">
+                      {agentRun?.parsed_intent.protected_rooms.length
+                        ? agentRun.parsed_intent.protected_rooms.join(", ")
+                        : "None"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
+                    <span>Activity</span>
+                    <span className="font-medium text-stone-900">{agentRun?.parsed_intent.activity ?? "General"}</span>
                   </div>
                 </div>
               </SectionCard>

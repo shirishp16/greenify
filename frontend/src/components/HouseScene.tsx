@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
 import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import type { HomeState } from "../types";
 import { RoomShell } from "./house/RoomShell";
 import { EVCharger, Fan, Fridge, Lamp, PorchLight, ScreenDevice } from "./house/devices";
@@ -8,13 +9,15 @@ import { EVCharger, Fan, Fridge, Lamp, PorchLight, ScreenDevice } from "./house/
 interface HouseSceneProps {
   homeState: HomeState | null;
   activeStepLabel: string;
+  protectedRooms?: string[];
+  actionScope?: string[];
 }
 
 function findDevice(homeState: HomeState, deviceId: string) {
   return homeState.devices.find((device) => device.id === deviceId);
 }
 
-function HouseModel({ homeState }: { homeState: HomeState }) {
+function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; protectedRooms?: string[] }) {
   const livingLamp = findDevice(homeState, "living_room_lamp");
   const livingTv = findDevice(homeState, "living_room_tv");
   const kitchenLight = findDevice(homeState, "kitchen_ceiling_light");
@@ -28,7 +31,13 @@ function HouseModel({ homeState }: { homeState: HomeState }) {
   return (
     <group position={[0, -0.4, 0]}>
       {/* ── FIRST FLOOR ── */}
-      <RoomShell position={[-3.1, 1.2, -1.6]} size={[3.4, 2.4, 2.8]} label="Living Room" accent="#b8956a">
+      <RoomShell
+        position={[-3.1, 1.2, -1.6]}
+        size={[3.4, 2.4, 2.8]}
+        label="Living Room"
+        accent="#b8956a"
+        highlighted={protectedRooms.includes("living room")}
+      >
         <Lamp position={[-0.8, -0.95, 0.1]} isOn={Boolean(livingLamp?.state.is_on)} brightness={livingLamp?.state.brightness} />
         <ScreenDevice position={[0.95, -1.08, -0.3]} isOn={Boolean(livingTv?.state.screen_on)} width={1.1} />
         {/* Sofa */}
@@ -38,7 +47,13 @@ function HouseModel({ homeState }: { homeState: HomeState }) {
         </mesh>
       </RoomShell>
 
-      <RoomShell position={[0.2, 1.2, -1.6]} size={[3, 2.4, 2.8]} label="Kitchen" accent="#adb38a">
+      <RoomShell
+        position={[0.2, 1.2, -1.6]}
+        size={[3, 2.4, 2.8]}
+        label="Kitchen"
+        accent="#adb38a"
+        highlighted={protectedRooms.includes("kitchen")}
+      >
         <Lamp position={[-0.55, -0.95, 0.5]} isOn={Boolean(kitchenLight?.state.is_on)} brightness={kitchenLight?.state.brightness} />
         <Fridge position={[0.95, -1.15, -0.25]} />
         {/* Counter */}
@@ -69,7 +84,13 @@ function HouseModel({ homeState }: { homeState: HomeState }) {
       </mesh>
 
       {/* ── SECOND FLOOR ── */}
-      <RoomShell position={[-3.1, 3.85, -1.6]} size={[3.4, 2.4, 2.8]} label="Bedroom" accent="#c49a7a">
+      <RoomShell
+        position={[-3.1, 3.85, -1.6]}
+        size={[3.4, 2.4, 2.8]}
+        label="Bedroom"
+        accent="#c49a7a"
+        highlighted={protectedRooms.includes("bedroom")}
+      >
         <Lamp position={[-0.9, -0.95, 0.25]} isOn={Boolean(bedroomLamp?.state.is_on)} brightness={bedroomLamp?.state.brightness} color="#fca5a5" />
         <Fan position={[0.7, -1.05, -0.25]} rpm={bedroomFan?.state.rotation_rpm ?? 0} />
         {/* Bed */}
@@ -79,9 +100,21 @@ function HouseModel({ homeState }: { homeState: HomeState }) {
         </mesh>
       </RoomShell>
 
-      <RoomShell position={[0.2, 3.85, -1.6]} size={[3, 2.4, 2.8]} label="Office" accent="#9aab8a">
+      <RoomShell
+        position={[0.2, 3.85, -1.6]}
+        size={[3, 2.4, 2.8]}
+        label="Office"
+        accent="#9aab8a"
+        highlighted={protectedRooms.includes("office")}
+      >
         <ScreenDevice position={[0.75, -1.08, -0.18]} isOn={Boolean(officeMonitor?.state.screen_on)} width={0.82} />
-        <Lamp position={[-0.75, -0.95, 0.3]} isOn={Boolean(smartPlugLamp?.state.is_on)} brightness={smartPlugLamp?.state.brightness} color="#5eead4" />
+        <Lamp
+          position={[-0.75, -0.95, 0.3]}
+          isOn={Boolean(smartPlugLamp?.state.is_on)}
+          brightness={smartPlugLamp?.state.brightness}
+          color="#5eead4"
+          badge="Smart Plug"
+        />
         {/* Desk */}
         <mesh position={[0.6, -1.08, -0.28]} castShadow>
           <boxGeometry args={[1.1, 0.12, 0.65]} />
@@ -90,7 +123,13 @@ function HouseModel({ homeState }: { homeState: HomeState }) {
       </RoomShell>
 
       {/* ── GARAGE (first floor, right wing) ── */}
-      <RoomShell position={[3.1, 1.2, -0.1]} size={[2.2, 2.4, 5.7]} label="Garage" accent="#a0a09a">
+      <RoomShell
+        position={[3.1, 1.2, -0.1]}
+        size={[2.2, 2.4, 5.7]}
+        label="Garage"
+        accent="#a0a09a"
+        highlighted={protectedRooms.includes("garage")}
+      >
         <EVCharger position={[0.2, -1.08, 0.5]} status={charger?.state.charger_status ?? "paused"} />
         {/* Garage floor mat */}
         <mesh position={[0, -1.08, -0.85]} castShadow>
@@ -116,12 +155,38 @@ function HouseModel({ homeState }: { homeState: HomeState }) {
   );
 }
 
-export function HouseScene({ homeState, activeStepLabel }: HouseSceneProps) {
+export function HouseScene({ homeState, activeStepLabel, protectedRooms = [], actionScope = [] }: HouseSceneProps) {
+  const [showActiveDevices, setShowActiveDevices] = useState(false);
+  const activeDevices = useMemo(
+    () =>
+      (homeState?.devices ?? []).filter((device) => {
+        if (device.type === "screen") {
+          return Boolean(device.state.screen_on);
+        }
+        if (device.type === "fan") {
+          return Boolean(device.state.rotation_rpm && device.state.rotation_rpm > 0);
+        }
+        if (device.type === "ev_charger") {
+          return device.state.charger_status === "charging";
+        }
+        return device.state.is_on;
+      }),
+    [homeState],
+  );
+
   return (
     <div className="panel relative h-[600px] overflow-hidden">
       <div className="absolute left-5 top-5 z-10 flex flex-wrap gap-2">
         <span className="data-pill bg-accent/15 text-accent">{homeState?.mode_label ?? "Loading"}</span>
         <span className="data-pill">{activeStepLabel}</span>
+        {protectedRooms.map((room) => (
+          <span key={room} className="data-pill bg-accent/10 text-accent">
+            Protecting {room}
+          </span>
+        ))}
+        {actionScope.length > 0 ? (
+          <span className="data-pill bg-stone-900/5 text-stone-700">Scope: {actionScope.join(", ")}</span>
+        ) : null}
       </div>
 
       <motion.div
@@ -130,8 +195,42 @@ export function HouseScene({ homeState, activeStepLabel }: HouseSceneProps) {
         animate={{ opacity: 1, y: 0 }}
         className="absolute bottom-5 left-5 z-10 rounded-2xl border border-stone-900/10 bg-stone-100/80 px-4 py-3 text-sm text-stone-700 backdrop-blur"
       >
-        {homeState ? `${homeState.devices.filter((device) => device.state.is_on).length} active devices` : "Booting house model"}
+        {homeState ? (
+          <button
+            type="button"
+            className="cursor-pointer font-medium text-stone-800 underline decoration-dotted underline-offset-4"
+            onClick={() => setShowActiveDevices((current) => !current)}
+          >
+            {activeDevices.length} active devices
+          </button>
+        ) : (
+          "Booting house model"
+        )}
       </motion.div>
+
+      {showActiveDevices && homeState ? (
+        <div className="absolute bottom-20 left-5 z-10 w-[320px] rounded-3xl border border-stone-900/10 bg-stone-50/95 p-4 shadow-xl backdrop-blur">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">Active Devices</div>
+            <button type="button" className="text-sm text-stone-500" onClick={() => setShowActiveDevices(false)}>
+              Close
+            </button>
+          </div>
+          <div className="space-y-2">
+            {activeDevices.map((device) => (
+              <div key={device.id} className="rounded-2xl bg-stone-900/5 px-3 py-2 text-sm text-stone-700">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-stone-900">{device.name}</span>
+                  <span>{device.room}</span>
+                </div>
+                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-500">
+                  {device.type} · {device.type === "ev_charger" ? device.state.charger_status : `${Math.round(device.power_watts)} W max`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <Canvas shadows camera={{ position: [9, 11, 13], fov: 44 }}>
         <color attach="background" args={["#f0ede6"]} />
@@ -144,7 +243,7 @@ export function HouseScene({ homeState, activeStepLabel }: HouseSceneProps) {
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
         />
-        {homeState ? <HouseModel homeState={homeState} /> : null}
+        {homeState ? <HouseModel homeState={homeState} protectedRooms={protectedRooms} /> : null}
         <Environment preset="apartment" />
         <OrbitControls
           enablePan={false}
