@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #f8fafc;
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.16), transparent 22%),
+    linear-gradient(180deg, #07111f 0%, #040b14 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: transparent;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.panel {
+  @apply rounded-3xl border border-white/10 bg-panel/80 shadow-glow backdrop-blur-xl;
+}
+
+.panel-title {
+  @apply text-sm font-semibold uppercase tracking-[0.22em] text-slate-300;
+}
+
+.data-pill {
+  @apply rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200;
+}
