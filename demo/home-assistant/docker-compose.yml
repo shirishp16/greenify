@@ -1,0 +1,35 @@
+services:
+  matter-server:
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    container_name: greenify-matter-server
+    restart: unless-stopped
+    # NOTE: Matter needs host networking (mDNS + IPv6) to talk to plugs on the
+    # LAN. On macOS, Docker Desktop's host networking is a beta feature — turn
+    # it on in Docker Desktop → Settings → Features in development → "Enable
+    # host networking". If that is enabled, the network_mode below works as-is.
+    network_mode: host
+    volumes:
+      - ./matter-data:/data
+    command:
+      - --storage-path=/data
+      - --paa-root-cert-dir=/data/credentials
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: greenify-homeassistant
+    restart: unless-stopped
+    # HA binds 8123 via an explicit port map so the UI is reachable even when
+    # Docker Desktop host networking is off.
+    ports:
+      - "8123:8123"
+    environment:
+      # With port mapping (non-host network), HA must connect to the matter-
+      # server sidecar via the Mac's host gateway, not localhost.
+      MATTER_SERVER_URL: "ws://host.docker.internal:5580/ws"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - matter-server

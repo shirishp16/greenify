@@ -34,12 +34,14 @@ export function Lamp({
   brightness = 1,
   color = "#fef08a",
   badge,
+  onClick,
 }: {
   position: [number, number, number];
   isOn: boolean;
   brightness?: number | null;
   color?: string;
   badge?: string;
+  onClick?: () => void;
 }) {
   const lightRef = useRef<PointLight>(null);
   const bulbRef = useRef<Mesh>(null);
@@ -47,8 +49,35 @@ export function Lamp({
   useLerpLight(lightRef, targetIntensity);
   useLerpEmissive(bulbRef, isOn ? 2.5 * (brightness ?? 1) : 0, color);
 
+  const interactive = Boolean(onClick);
+
   return (
-    <group position={position}>
+    <group
+      position={position}
+      onClick={
+        onClick
+          ? (event) => {
+              event.stopPropagation();
+              onClick();
+            }
+          : undefined
+      }
+      onPointerOver={
+        interactive
+          ? (event) => {
+              event.stopPropagation();
+              document.body.style.cursor = "pointer";
+            }
+          : undefined
+      }
+      onPointerOut={
+        interactive
+          ? () => {
+              document.body.style.cursor = "auto";
+            }
+          : undefined
+      }
+    >
       <mesh position={[0, 0.35, 0]} castShadow>
         <cylinderGeometry args={[0.05, 0.08, 0.7, 16]} />
         <meshStandardMaterial color="#7a6655" metalness={0.3} roughness={0.5} />

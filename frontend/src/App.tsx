@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { getHomeState, planAndExecute } from "./api";
+import { getHomeState, planAndExecute, toggleDevice } from "./api";
 import { HouseScene } from "./components/HouseScene";
 import { SectionCard } from "./components/SectionCard";
 import type { AgentResponse, HomeState } from "./types";
@@ -70,6 +70,19 @@ function App() {
     setIsRunning(false);
   }
 
+  async function handleDeviceToggle(deviceId: string) {
+    if (isRunning) return;
+    playbackVersion.current += 1;
+    try {
+      setError(null);
+      const updated = await toggleDevice(deviceId);
+      setDisplayedState(updated);
+      setServerState(updated);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Toggle failed.");
+    }
+  }
+
   async function handleRunAgent() {
     try {
       setError(null);
@@ -119,6 +132,7 @@ function App() {
               activeStepLabel={isLoading ? "Loading" : activeStepLabel}
               protectedRooms={agentRun?.parsed_intent.protected_rooms ?? []}
               actionScope={agentRun?.parsed_intent.action_scope ?? []}
+              onDeviceToggle={handleDeviceToggle}
             />
 
             <div className="grid gap-6 lg:grid-cols-3">
