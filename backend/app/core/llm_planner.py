@@ -236,7 +236,6 @@ def plan_with_llm(home_state: HomeState, goal: str) -> tuple[LLMPlan | None, str
         client = OpenAI()
         completion = client.chat.completions.create(
             model=model,
-            temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},

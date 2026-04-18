@@ -3,15 +3,19 @@
 @tailwind utilities;
 
 :root {
-  color: #2c2420;
+  color: #263229;
   background:
-    radial-gradient(circle at top left, rgba(74, 124, 89, 0.10), transparent 35%),
-    radial-gradient(circle at top right, rgba(193, 122, 58, 0.09), transparent 28%),
-    linear-gradient(180deg, #f5f0e8 0%, #ede8de 100%);
+    radial-gradient(circle at 9% 8%, rgba(74, 124, 89, 0.16), transparent 33%),
+    radial-gradient(circle at 92% 10%, rgba(193, 122, 58, 0.1), transparent 29%),
+    linear-gradient(180deg, #f8f4ea 0%, #efe8db 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -19,24 +23,36 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: transparent;
+  font-family: "Space Grotesk", "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
 }
 
 #root {
   min-height: 100vh;
 }
 
-* {
-  box-sizing: border-box;
+.app-shell {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(74, 124, 89, 0.08), transparent 28%),
+    radial-gradient(circle at 100% 12%, rgba(95, 130, 102, 0.07), transparent 35%);
 }
 
 .panel {
-  @apply rounded-3xl border border-stone-900/10 border-t-2 border-t-accent/20 bg-panel/90 shadow-glow backdrop-blur-xl;
+  @apply rounded-3xl border border-stone-900/10 bg-panel shadow-glow backdrop-blur-xl;
 }
 
 .panel-title {
-  @apply text-sm font-semibold uppercase tracking-[0.22em] text-stone-500;
+  @apply text-xs font-semibold uppercase tracking-[0.22em] text-stone-500;
 }
 
 .data-pill {
   @apply rounded-full border border-stone-900/10 bg-stone-900/5 px-3 py-1 text-xs font-medium text-stone-600;
+}
+
+.kpi-card {
+  @apply rounded-2xl border border-stone-900/10 bg-stone-100/85 px-4 py-3 shadow-sm backdrop-blur;
+}
+
+.input-surface {
+  @apply rounded-2xl border border-stone-900/10 bg-stone-50/90 p-4 text-sm text-stone-800 outline-none transition;
+  @apply focus:border-accent/40 focus:ring-2 focus:ring-accent/15 placeholder:text-stone-400;
 }

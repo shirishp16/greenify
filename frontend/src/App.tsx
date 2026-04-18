@@ -6,6 +6,21 @@ import { SectionCard } from "./components/SectionCard";
 import type { AgentResponse, HomeState } from "./types";
 import { formatClock, formatWatts, toTitleCase } from "./utils";
 
+const STARTER_GOALS = [
+  {
+    label: "Away Mode",
+    goal: "I'm leaving for 3 hours. Reduce energy use but keep the house secure.",
+  },
+  {
+    label: "Peak Pricing",
+    goal: "Lower my bill during peak hours without making the house uncomfortable.",
+  },
+  {
+    label: "Sleep Prep",
+    goal: "Prepare the house for sleep mode.",
+  },
+];
+
 function App() {
   const [goal, setGoal] = useState("");
   const [displayedState, setDisplayedState] = useState<HomeState | null>(null);
@@ -98,239 +113,379 @@ function App() {
   }
 
   const modeSource = displayedState ?? serverState;
+  const parsedIntent = agentRun?.parsed_intent;
+  const stepTotal = agentRun?.selected_plan.length ?? 0;
+  const stepsCompleted = Math.min(activeStep, stepTotal);
+  const progressPercent = stepTotal > 0 ? Math.round((stepsCompleted / stepTotal) * 100) : 0;
+
+  const plannerText = agentRun
+    ? agentRun.planner === "llm"
+      ? "OpenAI Planner"
+      : "Rules Fallback"
+    : "Idle";
+
+  const workflowStatus = isLoading ? "Loading home state" : isRunning ? "Executing plan" : agentRun ? "Run complete" : "Ready";
+
+  const topMetrics = [
+    {
+      label: "Occupancy",
+      value: toTitleCase(modeSource?.occupancy ?? "home"),
+    },
+    {
+      label: "Peak Pricing",
+      value: modeSource?.peak_pricing ? "Active" : "Off",
+    },
+    {
+      label: "Outdoor Temp",
+      value: `${modeSource?.outdoor_temp_f ?? "--"}°F`,
+    },
+    {
+      label: "Live Load",
+      value: formatWatts(displayedState?.total_power_watts ?? 0),
+    },
+    {
+      label: "Planner",
+      value: plannerText,
+    },
+  ];
+
+  const signalRows = [
+    { label: "Scenario Mode", value: modeSource?.mode_label ?? "--" },
+    { label: "Current Time", value: formatClock(modeSource?.current_time ?? null) },
+    { label: "Return Time", value: formatClock(modeSource?.return_time ?? null) },
+    {
+      label: "Comfort Band",
+      value: modeSource
+        ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F`
+        : "--",
+    },
+    {
+      label: "Protected Rooms",
+      value: parsedIntent?.protected_rooms.length ? parsedIntent.protected_rooms.join(", ") : "None",
+    },
+    {
+      label: "Scope",
+      value: parsedIntent?.action_scope.length ? parsedIntent.action_scope.join(", ") : "All eligible devices",
+    },
+    {
+      label: "Activity",
+      value: parsedIntent?.activity ? toTitleCase(parsedIntent.activity) : "General",
+    },
+  ];
 
   return (
-    <div className="min-h-screen px-4 py-6 text-stone-800 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
+    <div className="app-shell min-h-screen px-4 py-6 text-stone-800 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1700px]">
         <motion.header
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
+          className="mb-6 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]"
         >
-          <div>
-            <div className="mb-2 text-sm uppercase tracking-[0.35em] text-accent">Greenify</div>
-            <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
-              AI-powered energy agent — turns intent into autonomous home savings.
+          <div className="panel p-6 sm:p-7">
+            <div className="mb-3 inline-flex rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.26em] text-accent">
+              Greenify Control Center
+            </div>
+            <h1 className="max-w-4xl text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl lg:text-5xl">
+              Translate plain-English goals into safe, visible home energy actions.
             </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-stone-600 sm:text-base">
+              The left side is your command workspace and simulation. The right side is the decision console that explains
+              what the agent planned, what it skipped, and why.
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <span className="data-pill">Occupancy: {toTitleCase(modeSource?.occupancy ?? "home")}</span>
-            <span className="data-pill">Peak pricing: {modeSource?.peak_pricing ? "Active" : "Off"}</span>
-            <span className="data-pill">Outdoor: {modeSource?.outdoor_temp_f ?? "--"}°F</span>
-            <span className="data-pill">Live load: {formatWatts(displayedState?.total_power_watts ?? 0)}</span>
-            <span className="data-pill">
-              Agent: {agentRun ? (agentRun.planner === "llm" ? "OpenAI" : "Fallback") : "Standby"}
-            </span>
+          <div className="panel p-6 sm:p-7">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-accent">Run Status</div>
+            <div className="mb-2 text-2xl font-semibold text-stone-900">{workflowStatus}</div>
+            <div className="mb-4 text-sm text-stone-600">{activeStepLabel}</div>
+            <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-stone-500">
+              <span>Execution Progress</span>
+              <span>
+                {stepsCompleted}/{stepTotal || 0}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-stone-900/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent to-green-500 transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-stone-900/5 p-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Before</div>
+                <div className="text-lg font-semibold text-stone-900">
+                  {formatWatts(agentRun?.watts_before ?? serverState?.total_power_watts ?? 0)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-stone-900/5 p-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-stone-500">After</div>
+                <div className="text-lg font-semibold text-stone-900">
+                  {formatWatts(agentRun?.watts_after ?? displayedState?.total_power_watts ?? 0)}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-success/30 bg-success/10 p-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-success">Saved</div>
+                <div className="text-lg font-semibold text-stone-900">{formatWatts(agentRun?.watts_saved ?? 0)}</div>
+              </div>
+            </div>
           </div>
         </motion.header>
 
-        <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
-          <div className="space-y-6">
-            <HouseScene
-              homeState={displayedState}
-              activeStepLabel={isLoading ? "Loading" : activeStepLabel}
-              protectedRooms={agentRun?.parsed_intent.protected_rooms ?? []}
-              actionScope={agentRun?.parsed_intent.action_scope ?? []}
-              onDeviceToggle={handleDeviceToggle}
-            />
-
-            <div className="grid gap-6 lg:grid-cols-3">
-              <SectionCard title="Prompt" eyebrow="Input">
-                <p className="mb-4 text-sm leading-6 text-stone-600">
-                  Describe the outcome you want. The agent derives the operating context from the prompt itself.
-                </p>
-                <textarea
-                  value={goal}
-                  onChange={(event) => setGoal(event.target.value)}
-                  rows={5}
-                  className="mb-4 w-full rounded-2xl border border-stone-900/10 bg-stone-50/90 p-4 text-sm text-stone-800 outline-none transition focus:border-accent/40 focus:ring-2 focus:ring-accent/15 placeholder:text-stone-400"
-                  placeholder="Examples: I'm leaving for 3 hours. Reduce energy use but keep the house secure."
-                />
-
-                <button
-                  type="button"
-                  onClick={() => void handleRunAgent()}
-                  disabled={isLoading || isRunning || !goal.trim()}
-                  className="w-full rounded-2xl bg-gradient-to-r from-accent to-green-500 px-4 py-3 text-sm font-semibold text-white ring-1 ring-accent/30 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isRunning ? "Executing plan..." : "Run Agent"}
-                </button>
-
-                {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
-              </SectionCard>
-
-              <SectionCard title="Mode Signals" eyebrow="State">
-                <div className="space-y-3 text-sm text-stone-700">
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
-                    <span>Mode</span>
-                    <span className="font-medium text-stone-900">{modeSource?.mode_label ?? "--"}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
-                    <span>Current time</span>
-                    <span className="font-medium text-stone-900">{formatClock(modeSource?.current_time ?? null)}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
-                    <span>Return time</span>
-                    <span className="font-medium text-stone-900">{formatClock(modeSource?.return_time ?? null)}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
-                    <span>Comfort band</span>
-                    <span className="font-medium text-stone-900">
-                      {modeSource
-                        ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F`
-                        : "--"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
-                    <span>Protected rooms</span>
-                    <span className="font-medium text-stone-900">
-                      {agentRun?.parsed_intent.protected_rooms.length
-                        ? agentRun.parsed_intent.protected_rooms.join(", ")
-                        : "None"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
-                    <span>Activity</span>
-                    <span className="font-medium text-stone-900">{agentRun?.parsed_intent.activity ?? "General"}</span>
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Energy Delta" eyebrow="Impact">
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-stone-900/5 p-4">
-                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-stone-500">Before</div>
-                    <div className="text-3xl font-semibold text-stone-900">
-                      {formatWatts(agentRun?.watts_before ?? serverState?.total_power_watts ?? 0)}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-stone-900/5 p-4">
-                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-stone-500">After</div>
-                    <div className="text-3xl font-semibold text-stone-900">
-                      {formatWatts(agentRun?.watts_after ?? displayedState?.total_power_watts ?? 0)}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-success/30 bg-success/10 p-4">
-                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-success">Saved</div>
-                    <div className="text-3xl font-semibold text-stone-900">{formatWatts(agentRun?.watts_saved ?? 0)}</div>
-                  </div>
-                </div>
-              </SectionCard>
+        <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {topMetrics.map((item) => (
+            <div key={item.label} className="kpi-card">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-stone-500">{item.label}</div>
+              <div className="mt-2 text-base font-semibold text-stone-900">{item.value}</div>
             </div>
+          ))}
+        </section>
+
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className="space-y-6">
+            <SectionCard
+              title="1. Define The Goal"
+              eyebrow="Workflow"
+              subtitle="Tell the agent what outcome you want. It will infer context and constraints automatically."
+            >
+              <div className="mb-4 flex flex-wrap gap-2">
+                {STARTER_GOALS.map((starter) => (
+                  <button
+                    key={starter.label}
+                    type="button"
+                    onClick={() => setGoal(starter.goal)}
+                    className="rounded-full border border-stone-900/10 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-accent/35 hover:bg-accent/8"
+                  >
+                    {starter.label}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                value={goal}
+                onChange={(event) => setGoal(event.target.value)}
+                rows={5}
+                className="input-surface mb-4 w-full"
+                placeholder="Example: I'm leaving for 3 hours. Reduce energy use but keep the house secure."
+              />
+
+              <button
+                type="button"
+                onClick={() => void handleRunAgent()}
+                disabled={isLoading || isRunning || !goal.trim()}
+                className="w-full rounded-2xl bg-gradient-to-r from-accent to-green-500 px-4 py-3 text-sm font-semibold text-white ring-1 ring-accent/30 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRunning ? "Executing Plan..." : "Run Agent"}
+              </button>
+
+              {error ? (
+                <p className="mt-3 rounded-xl border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
+              ) : null}
+            </SectionCard>
+
+            <SectionCard
+              title="2. Watch The Home Simulation"
+              eyebrow="Simulation"
+              subtitle="The house scene replays backend snapshots in execution order. No UI-only state changes are injected."
+            >
+              <HouseScene
+                homeState={displayedState}
+                activeStepLabel={isLoading ? "Loading" : activeStepLabel}
+                protectedRooms={parsedIntent?.protected_rooms ?? []}
+                actionScope={parsedIntent?.action_scope ?? []}
+                onDeviceToggle={handleDeviceToggle}
+              />
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 p-3 text-sm text-stone-600">
+                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-stone-500">Protected Rooms</div>
+                  Rooms needed for the activity are highlighted and preserved.
+                </div>
+                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 p-3 text-sm text-stone-600">
+                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-stone-500">Action Scope</div>
+                  If prompt scope is narrow, only those device types are eligible.
+                </div>
+                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 p-3 text-sm text-stone-600">
+                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-stone-500">Timeline</div>
+                  Current step label maps directly to the backend execution snapshot.
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="3. Current Home Signals"
+              eyebrow="State Context"
+              subtitle="These inputs are what planning logic uses to decide whether actions are safe and worthwhile."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                {signalRows.map((row) => (
+                  <div key={row.label} className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{row.label}</div>
+                    <div className="mt-1 text-sm font-medium text-stone-900">{row.value}</div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
           </div>
 
           <div className="space-y-6">
-            <SectionCard title="Agent Reasoning" eyebrow="Interpretation" className="border-l-2 border-l-accent/30">
-              {agentRun ? (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span
-                    className={`data-pill ${
-                      agentRun.planner === "llm"
-                        ? "border-accent/30 bg-accent/15 text-accent"
-                        : "border-danger/30 bg-danger/15 text-danger"
-                    }`}
-                  >
-                    {agentRun.planner === "llm" ? "Planner: OpenAI (live)" : "Planner: Emergency fallback"}
-                  </span>
-                  {agentRun.planner_notice ? (
-                    <span className="text-xs text-stone-500">{agentRun.planner_notice}</span>
-                  ) : null}
-                </div>
-              ) : null}
+            <SectionCard
+              title="Agent Decision Console"
+              eyebrow="Interpretation"
+              subtitle="This explains how the goal was interpreted, what assumptions were made, and which constraints shaped the plan."
+              className="border-l-2 border-l-accent/30"
+            >
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span
+                  className={`data-pill ${
+                    agentRun?.planner === "llm"
+                      ? "border-accent/30 bg-accent/15 text-accent"
+                      : "border-stone-900/10 bg-stone-900/5 text-stone-600"
+                  }`}
+                >
+                  Planner: {plannerText}
+                </span>
+                {agentRun?.planner_notice ? <span className="text-xs text-stone-500">{agentRun.planner_notice}</span> : null}
+              </div>
+
               <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/10 p-4 text-sm text-stone-800">
-                {agentRun?.interpreted_goal ?? "Run the agent to see how Greenify interprets and executes the prompt."}
+                {agentRun?.interpreted_goal ?? "Run the agent to see how the prompt is interpreted into a planning objective."}
               </div>
 
               <p className="mb-4 text-sm leading-6 text-stone-600">
                 {agentRun?.reasoning_summary ??
-                  "The agent will inspect home state, preserve essential/security devices, and sequence the highest-value energy actions first."}
+                  "Reasoning summary appears here after a run, including tradeoffs between savings, comfort, and safety constraints."}
               </p>
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <div>
                   <div className="panel-title mb-2">Assumptions</div>
-                  <ul className="space-y-2 text-sm text-stone-600">
-                    {(agentRun?.assumptions ?? []).map((item) => (
-                      <li key={item} className="rounded-2xl bg-stone-900/5 px-3 py-2">
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+                  {(agentRun?.assumptions ?? []).length > 0 ? (
+                    <ul className="space-y-2 text-sm text-stone-600">
+                      {(agentRun?.assumptions ?? []).map((item) => (
+                        <li key={item} className="rounded-2xl bg-stone-900/5 px-3 py-2">
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="rounded-2xl bg-stone-900/5 px-3 py-2 text-sm text-stone-500">No run yet.</div>
+                  )}
                 </div>
 
                 <div>
-                  <div className="panel-title mb-2">Constraints</div>
-                  <ul className="space-y-2 text-sm text-stone-600">
-                    {(agentRun?.constraints_applied ?? []).map((item) => (
-                      <li key={item} className="rounded-2xl bg-stone-900/5 px-3 py-2">
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="panel-title mb-2">Constraints Applied</div>
+                  {(agentRun?.constraints_applied ?? []).length > 0 ? (
+                    <ul className="space-y-2 text-sm text-stone-600">
+                      {(agentRun?.constraints_applied ?? []).map((item) => (
+                        <li key={item} className="rounded-2xl bg-stone-900/5 px-3 py-2">
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="rounded-2xl bg-stone-900/5 px-3 py-2 text-sm text-stone-500">No run yet.</div>
+                  )}
                 </div>
               </div>
             </SectionCard>
 
-            <SectionCard title="Selected Plan" eyebrow="Execution" className="border-l-2 border-l-accent/30">
-              <div className="space-y-3">
-                {(agentRun?.selected_plan ?? []).map((action, index) => {
-                  const isActive = index + 1 <= activeStep;
+            <SectionCard
+              title="Selected Actions"
+              eyebrow="Execution Plan"
+              subtitle="Ordered actions the agent chose. Savings are estimated per action from state deltas."
+              className="border-l-2 border-l-accent/30"
+            >
+              {(agentRun?.selected_plan ?? []).length > 0 ? (
+                <div className="space-y-3">
+                  {(agentRun?.selected_plan ?? []).map((action, index) => {
+                    const reached = index + 1 <= activeStep;
+                    const savings = action.estimated_savings_watts;
 
-                  return (
-                    <div
-                      key={action.id}
-                      className={`rounded-2xl border px-4 py-3 transition ${
-                        isActive ? "border-accent/40 bg-accent/8" : "border-stone-900/10 bg-stone-900/5"
-                      }`}
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-4">
-                        <div className="font-medium text-stone-900">{action.title}</div>
-                        <div className="text-sm text-accentWarm">-{formatWatts(action.estimated_savings_watts)}</div>
+                    return (
+                      <div
+                        key={action.id}
+                        className={`rounded-2xl border px-4 py-3 transition ${
+                          reached ? "border-accent/40 bg-accent/8" : "border-stone-900/10 bg-stone-900/5"
+                        }`}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-stone-900/10 text-xs font-semibold text-stone-700">
+                              {index + 1}
+                            </span>
+                            <span className="font-medium text-stone-900">{action.title}</span>
+                          </div>
+                          <span className={`text-sm font-semibold ${savings >= 0 ? "text-success" : "text-danger"}`}>
+                            {savings >= 0 ? "-" : "+"}
+                            {formatWatts(Math.abs(savings))}
+                          </span>
+                        </div>
+                        <div className="text-sm text-stone-600">{action.description}</div>
+                        <div className="mt-2 text-xs uppercase tracking-[0.16em] text-stone-400">{action.reason}</div>
                       </div>
-                      <div className="text-sm text-stone-600">{action.description}</div>
-                      <div className="mt-2 text-xs uppercase tracking-[0.18em] text-stone-400">{action.reason}</div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3 text-sm text-stone-500">
+                  No plan yet. Run the agent to populate this section.
+                </div>
+              )}
             </SectionCard>
 
-            <SectionCard title="Skipped by Constraints" eyebrow="No Action">
-              <div className="space-y-3">
-                {(agentRun?.skipped_actions ?? []).map((item) => (
-                  <div
-                    key={item.device_id}
-                    className="rounded-2xl border border-accentWarm/20 bg-accentWarm/8 px-4 py-3"
-                  >
-                    <div className="font-medium text-stone-900">{item.title}</div>
-                    <div className="text-sm text-stone-600">{item.reason}</div>
-                  </div>
-                ))}
-              </div>
+            <SectionCard
+              title="Skipped Actions"
+              eyebrow="Safety Holds"
+              subtitle="Actions intentionally blocked by hard constraints or scope limitations."
+            >
+              {(agentRun?.skipped_actions ?? []).length > 0 ? (
+                <div className="space-y-3">
+                  {(agentRun?.skipped_actions ?? []).map((item) => (
+                    <div key={item.device_id} className="rounded-2xl border border-accentWarm/25 bg-accentWarm/10 px-4 py-3">
+                      <div className="font-medium text-stone-900">{item.title}</div>
+                      <div className="text-sm text-stone-600">{item.reason}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3 text-sm text-stone-500">
+                  No skipped actions for this run.
+                </div>
+              )}
             </SectionCard>
 
-            <SectionCard title="Execution Log" eyebrow="Timeline">
-              <div className="space-y-3">
-                {(agentRun?.execution_results ?? []).map((item, index) => {
-                  const reached = index + 1 <= activeStep;
+            <SectionCard
+              title="Execution Timeline"
+              eyebrow="Run Log"
+              subtitle="Per-step execution output tied to the snapshot currently shown in the simulation."
+            >
+              {(agentRun?.execution_results ?? []).length > 0 ? (
+                <div className="space-y-3">
+                  {(agentRun?.execution_results ?? []).map((item, index) => {
+                    const reached = index + 1 <= activeStep;
 
-                  return (
-                    <div
-                      key={item.action_id}
-                      className={`rounded-2xl px-4 py-3 text-sm transition ${
-                        reached ? "bg-accent/10 text-stone-800" : "bg-stone-900/5 text-stone-400"
-                      }`}
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-4">
-                        <span className="font-medium">{item.title}</span>
-                        <span>{formatWatts(item.resulting_power_watts)}</span>
+                    return (
+                      <div
+                        key={item.action_id}
+                        className={`rounded-2xl border px-4 py-3 text-sm transition ${
+                          reached
+                            ? "border-accent/20 bg-accent/10 text-stone-800"
+                            : "border-stone-900/10 bg-stone-900/5 text-stone-500"
+                        }`}
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-4">
+                          <span className="font-medium">{item.title}</span>
+                          <span>{formatWatts(item.resulting_power_watts)}</span>
+                        </div>
+                        <div>{item.message}</div>
                       </div>
-                      <div>{item.message}</div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3 text-sm text-stone-500">
+                  Timeline appears after the first run.
+                </div>
+              )}
             </SectionCard>
           </div>
         </div>
