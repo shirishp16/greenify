@@ -5,12 +5,11 @@ from fastapi import APIRouter, HTTPException
 from app.core.agent import EnergyAgent
 from app.core.state import build_home_state_from_goal, home_state_store
 from app.models.schemas import AgentResponse, DeviceType, HomeState, PlanAndExecuteRequest
-from app.services.openai_agent import OpenAIPlanner
 from app.services.smart_plug import build_smart_plug_service
 
 
 router = APIRouter(prefix="/api")
-agent = EnergyAgent(smart_plug_service=build_smart_plug_service(), openai_planner=OpenAIPlanner())
+agent = EnergyAgent(smart_plug_service=build_smart_plug_service())
 
 
 @router.get("/health")
@@ -23,9 +22,23 @@ def get_home_state() -> HomeState:
     return home_state_store.get_state()
 
 
+def _overlay_real_device_state(scenario_state: HomeState, stored: HomeState) -> HomeState:
+    """Trust the persistent store for any device flagged real_device — the
+    scenario rebuild is seed-fresh and doesn't know the plug is currently off.
+    """
+    stored_by_id = {d.id: d for d in stored.devices}
+    for device in scenario_state.devices:
+        if device.real_device and device.id in stored_by_id:
+            device.state = stored_by_id[device.id].state.model_copy(deep=True)
+    return scenario_state
+
+
 @router.post("/agent/plan-and-execute", response_model=AgentResponse)
 def plan_and_execute(payload: PlanAndExecuteRequest) -> AgentResponse:
-    current_state = build_home_state_from_goal(payload.goal)
+    current_state = _overlay_real_device_state(
+        build_home_state_from_goal(payload.goal),
+        home_state_store.get_state(),
+    )
     response = agent.plan_and_execute(
         current_state,
         payload.goal,

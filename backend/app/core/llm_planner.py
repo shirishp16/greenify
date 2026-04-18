@@ -138,6 +138,8 @@ PLANNING GUIDANCE
   when the resident is present. When the home is asleep or away, full off is acceptable.
 - Treat `hvac` as a whole-home comfort system. When outdoor temperature is outside the comfort band, prefer it ON
   unless the prompt is explicitly cost-sensitive or the resident is away and comfort is not being preserved.
+- For `hvac`, target_state fields brightness, screen_on, rotation_rpm, and charger_status must all be null.
+  HVAC is pure on/off — never set a setpoint, brightness, rpm, or charger_status on it.
 - Order `plan` by impact: highest-watt reductions first.
 - Devices of type `appliance` (washer, dryer, dishwasher) use only `turn_on` and `turn_off`.
   They have no brightness, rotation_rpm, screen_on, or charger_status. All those fields must be null.
