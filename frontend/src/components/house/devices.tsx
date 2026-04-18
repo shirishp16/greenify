@@ -175,6 +175,126 @@ export function EVCharger({
   );
 }
 
+export function Washer({
+  position,
+  isOn,
+}: {
+  position: [number, number, number];
+  isOn: boolean;
+}) {
+  const indicatorRef = useRef<Mesh>(null);
+  useLerpEmissive(indicatorRef, isOn ? 2.5 : 0, "#4a7c59");
+
+  return (
+    <group position={position}>
+      {/* Body */}
+      <mesh position={[0, 0.32, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.62, 0.52]} />
+        <meshStandardMaterial color="#e8e2da" roughness={0.4} />
+      </mesh>
+      {/* Porthole ring */}
+      <mesh position={[0, 0.34, 0.265]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.14, 0.025, 12, 24]} />
+        <meshStandardMaterial color="#8a7a6a" metalness={0.4} roughness={0.4} />
+      </mesh>
+      {/* Porthole glass */}
+      <mesh position={[0, 0.34, 0.268]}>
+        <circleGeometry args={[0.11, 24]} />
+        <meshStandardMaterial color={isOn ? "#6a9ab8" : "#3a4a5a"} roughness={0.1} metalness={0.2} />
+      </mesh>
+      {/* Control panel top */}
+      <mesh position={[0, 0.66, 0.12]} castShadow>
+        <boxGeometry args={[0.45, 0.05, 0.24]} />
+        <meshStandardMaterial color="#ccc8c0" roughness={0.4} />
+      </mesh>
+      {/* Status LED */}
+      <mesh ref={indicatorRef} position={[0.16, 0.66, 0.25]}>
+        <boxGeometry args={[0.04, 0.04, 0.02]} />
+        <meshStandardMaterial color="#1a2420" emissive="#4a7c59" emissiveIntensity={0} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Dryer({
+  position,
+  isOn,
+}: {
+  position: [number, number, number];
+  isOn: boolean;
+}) {
+  const indicatorRef = useRef<Mesh>(null);
+  useLerpEmissive(indicatorRef, isOn ? 2.5 : 0, "#4a7c59");
+
+  return (
+    <group position={position}>
+      {/* Body — slightly warmer tone to distinguish from washer */}
+      <mesh position={[0, 0.32, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.62, 0.52]} />
+        <meshStandardMaterial color="#ddd8d0" roughness={0.4} />
+      </mesh>
+      {/* Circular door ring — larger, flatter torus */}
+      <mesh position={[0, 0.32, 0.265]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.16, 0.02, 12, 24]} />
+        <meshStandardMaterial color="#7a6a5a" metalness={0.3} roughness={0.5} />
+      </mesh>
+      {/* Vent slots — three thin horizontal bars */}
+      {([-0.06, 0, 0.06] as const).map((ox) => (
+        <mesh key={ox} position={[ox, 0.32, 0.266]} castShadow>
+          <boxGeometry args={[0.025, 0.11, 0.015]} />
+          <meshStandardMaterial color="#5a4a3a" />
+        </mesh>
+      ))}
+      {/* Control panel top */}
+      <mesh position={[0, 0.66, 0.12]} castShadow>
+        <boxGeometry args={[0.45, 0.05, 0.24]} />
+        <meshStandardMaterial color="#c8c4bc" roughness={0.4} />
+      </mesh>
+      {/* Status LED */}
+      <mesh ref={indicatorRef} position={[0.16, 0.66, 0.25]}>
+        <boxGeometry args={[0.04, 0.04, 0.02]} />
+        <meshStandardMaterial color="#1a2420" emissive="#4a7c59" emissiveIntensity={0} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Dishwasher({
+  position,
+  isOn,
+}: {
+  position: [number, number, number];
+  isOn: boolean;
+}) {
+  const indicatorRef = useRef<Mesh>(null);
+  useLerpEmissive(indicatorRef, isOn ? 2.5 : 0, "#4a7c59");
+
+  return (
+    <group position={position}>
+      {/* Body — under-counter height, slightly narrower */}
+      <mesh position={[0, 0.38, 0]} castShadow>
+        <boxGeometry args={[0.52, 0.75, 0.50]} />
+        <meshStandardMaterial color="#e0dbd2" roughness={0.4} />
+      </mesh>
+      {/* Door handle — horizontal bar */}
+      <mesh position={[0, 0.54, 0.26]} castShadow>
+        <boxGeometry args={[0.38, 0.04, 0.04]} />
+        <meshStandardMaterial color="#8a7a6a" metalness={0.3} roughness={0.4} />
+      </mesh>
+      {/* Control panel strip near top */}
+      <mesh position={[0, 0.76, 0.16]} castShadow>
+        <boxGeometry args={[0.42, 0.05, 0.16]} />
+        <meshStandardMaterial color="#c0bbb4" roughness={0.4} />
+      </mesh>
+      {/* Status LED */}
+      <mesh ref={indicatorRef} position={[0.15, 0.76, 0.25]}>
+        <boxGeometry args={[0.04, 0.04, 0.02]} />
+        <meshStandardMaterial color="#1a2420" emissive="#4a7c59" emissiveIntensity={0} />
+      </mesh>
+    </group>
+  );
+}
+
 export function PorchLight({
   position,
   isOn,
