@@ -169,6 +169,7 @@ class OpenAIPlanner:
             "Never contradict hard_constraints. "
             "Preserve essential appliances and security devices when applicable. "
             "Keep comfort within the supplied bounds. "
+            "Use whole-home HVAC when weather materially exceeds the comfort band, and reduce it only when the prompt clearly allows comfort tradeoffs. "
             "Return concise, human-readable reasoning for a hackathon demo. "
             "If uncertain, stay conservative."
         )

@@ -16,6 +16,7 @@ class DeviceType(str, Enum):
     LIGHT = "light"
     SCREEN = "screen"
     FAN = "fan"
+    HVAC = "hvac"
     FRIDGE = "fridge"
     EV_CHARGER = "ev_charger"
     SMART_PLUG = "smart_plug"

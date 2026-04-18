@@ -140,6 +140,8 @@ class EnergyAgent:
             scope.append("screen")
         if "fan" in normalized_goal:
             scope.append("fan")
+        if any(marker in normalized_goal for marker in ["hvac", "ac", "a/c", "air conditioning", "heat", "heating", "cooling", "thermostat"]):
+            scope.append("hvac")
         if any(marker in normalized_goal for marker in ["ev", "charger", "charging"]):
             scope.append("ev_charger")
 
@@ -170,7 +172,7 @@ class EnergyAgent:
         if intent.activity == "relaxing" and room == "living room":
             return device_type in {DeviceType.SCREEN, DeviceType.LIGHT}
         if intent.activity == "sleeping" and room == "bedroom":
-            return device_type in {DeviceType.FAN, DeviceType.LIGHT}
+            return device_type == DeviceType.LIGHT
         if intent.activity == "general":
             return device_type in {DeviceType.LIGHT, DeviceType.SCREEN, DeviceType.SMART_PLUG, DeviceType.FAN}
 
@@ -183,6 +185,43 @@ class EnergyAgent:
             return False
         return device.type in {DeviceType.LIGHT, DeviceType.SCREEN, DeviceType.FAN, DeviceType.SMART_PLUG}
 
+    def _hvac_needs_climate_support(self, home_state: HomeState) -> bool:
+        return (
+            home_state.outdoor_temp_f > home_state.comfort_temp_range.max_f + 2
+            or home_state.outdoor_temp_f < home_state.comfort_temp_range.min_f - 2
+        )
+
+    def _hvac_is_extreme_weather(self, home_state: HomeState) -> bool:
+        return (
+            home_state.outdoor_temp_f > home_state.comfort_temp_range.max_f + 8
+            or home_state.outdoor_temp_f < home_state.comfort_temp_range.min_f - 8
+        )
+
+    def _desired_hvac_state(self, device: Device, intent: GoalIntent, home_state: HomeState) -> DeviceState | None:
+        target = device.state.model_copy(deep=True)
+        needs_climate_support = self._hvac_needs_climate_support(home_state)
+        extreme_weather = self._hvac_is_extreme_weather(home_state)
+
+        if not needs_climate_support:
+            target.is_on = False
+            return target if device.state.is_on else None
+
+        if intent.mode == "away_mode" and not intent.preserve_comfort and not extreme_weather:
+            target.is_on = False
+            return target if device.state.is_on else None
+
+        if intent.preserve_comfort or intent.protected_rooms or home_state.occupancy == Occupancy.HOME or extreme_weather:
+            target.is_on = True
+            target.scheduled = False
+            target.schedule_note = None
+            return target if not device.state.is_on else None
+
+        if intent.cost_sensitive and not intent.protected_rooms and not extreme_weather:
+            target.is_on = False
+            return target if device.state.is_on else None
+
+        return None
+
     def _default_brightness_for_activity(self, intent: GoalIntent, room: str) -> float:
         if intent.activity == "working" and room == "office":
             return 0.95
@@ -194,7 +233,7 @@ class EnergyAgent:
             return 0.3
         return 0.8
 
-    def _desired_state_for_device(self, device: Device, intent: GoalIntent) -> DeviceState | None:
+    def _desired_state_for_device(self, device: Device, intent: GoalIntent, home_state: HomeState) -> DeviceState | None:
         target = device.state.model_copy(deep=True)
         protected = device.room in intent.protected_rooms
         needed_for_activity = self._device_needed_for_activity(intent, device.room, device.type)
@@ -202,6 +241,9 @@ class EnergyAgent:
         if device.essential:
             target.is_on = True
             return target
+
+        if device.type == DeviceType.HVAC:
+            return self._desired_hvac_state(device, intent, home_state)
 
         if device.security_related and intent.preserve_security:
             target.is_on = True
@@ -407,6 +449,23 @@ class EnergyAgent:
                 4,
             )
 
+        if device.type == DeviceType.HVAC:
+            if target.is_on:
+                return (
+                    "turn_on",
+                    "Run Central HVAC",
+                    "Keep the whole-home HVAC system running to stay within the comfort band.",
+                    "Outdoor temperature is outside the comfort band, so climate control remains worthwhile.",
+                    1,
+                )
+            return (
+                "turn_off",
+                "Pause Central HVAC",
+                "Turn off the whole-home HVAC system to reduce heavy comfort-system draw.",
+                "Outdoor conditions and prompt constraints allow the HVAC load to be reduced safely.",
+                1,
+            )
+
         return (
             "preserve",
             f"Preserve {device.name}",
@@ -459,6 +518,7 @@ class EnergyAgent:
             "Only remote controllable devices can be executed.",
             "Security-related devices are preserved or scheduled for away mode.",
             "Comfort-related devices are adjusted without leaving comfort bounds.",
+            "Whole-home HVAC responds to outdoor temperature and the comfort band.",
             "EV charging can be deferred instead of canceled.",
         ]
         if intent.protected_rooms:
@@ -490,7 +550,7 @@ class EnergyAgent:
                 )
                 continue
 
-            target = self._desired_state_for_device(device, intent)
+            target = self._desired_state_for_device(device, intent, home_state)
             if target is None:
                 if device.room in intent.protected_rooms and self._device_needed_for_activity(intent, device.room, device.type):
                     skipped.append(
@@ -890,9 +950,9 @@ class EnergyAgent:
             f"Occupancy is '{home_state.occupancy.value}' at {home_state.current_time}.",
         ]
         items.append(
-            "Utility peak-pricing window is active — watts saved convert directly to cost saved."
+            "Utility pricing is elevated, so watts saved also improve near-term cost."
             if home_state.peak_pricing
-            else "Pricing is off-peak; savings are energy-only rather than cost-urgent."
+            else "Utility pricing is normal, so the plan prioritizes energy savings without extra cost pressure."
         )
         items.append(
             f"Outdoor temperature is {home_state.outdoor_temp_f}°F against comfort band "
@@ -908,15 +968,9 @@ class EnergyAgent:
         selected_plan: list[PlanAction],
         skipped_actions: list[SkippedAction],
     ) -> str:
-        mode_label = {
-            "sleep_mode": "sleep-prep",
-            "away_mode": "away",
-            "peak_pricing": "peak-pricing",
-            "custom": "custom",
-        }.get(intent.mode, intent.mode)
         total_saved = round(sum(a.estimated_savings_watts for a in selected_plan), 1)
         parts = [
-            f"Rules planner ran {mode_label} mode and selected {len(selected_plan)} action(s) "
+            f"Rules planner interpreted the prompt and selected {len(selected_plan)} action(s) "
             f"for an estimated {total_saved}W reduction."
         ]
         if skipped_actions:

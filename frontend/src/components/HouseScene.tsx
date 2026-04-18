@@ -4,19 +4,7 @@ import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import type { HomeState } from "../types";
 import { RoomShell } from "./house/RoomShell";
-import {
-  ChargingCable,
-  Dishwasher,
-  Dryer,
-  EVCharger,
-  Fan,
-  Fridge,
-  Lamp,
-  PorchLight,
-  ScreenDevice,
-  TeslaCar,
-  Washer,
-} from "./house/devices";
+import { ChargingCable, Dishwasher, Dryer, EVCharger, Fan, Fridge, HVACUnit, Lamp, PorchLight, ScreenDevice, TeslaCar, Washer } from "./house/devices";
 
 interface HouseSceneProps {
   homeState: HomeState | null;
@@ -44,6 +32,7 @@ function HouseModel({
   const kitchenLight = findDevice(homeState, "kitchen_ceiling_light");
   const bedroomLamp = findDevice(homeState, "bedroom_lamp");
   const bedroomFan = findDevice(homeState, "bedroom_fan");
+  const hvac = findDevice(homeState, "central_hvac");
   const officeMonitor = findDevice(homeState, "office_monitor");
   const smartPlugLamp = findDevice(homeState, "office_demo_plug_lamp");
   const charger = findDevice(homeState, "garage_ev_charger");
@@ -235,6 +224,8 @@ function HouseModel({
         scheduled={porchLight?.state.scheduled}
       />
 
+      <HVACUnit position={[4.2, 0.3, 2.5]} isOn={Boolean(hvac?.state.is_on)} />
+
       {/* Ground slab */}
       <mesh position={[0.35, -0.08, 0.2]} receiveShadow>
         <boxGeometry args={[11, 0.12, 8]} />
@@ -277,7 +268,7 @@ export function HouseScene({
   return (
     <div className="panel relative h-[600px] overflow-hidden">
       <div className="absolute left-5 top-5 z-10 flex flex-wrap gap-2">
-        <span className="data-pill bg-accent/15 text-accent">{homeState?.mode_label ?? "Loading"}</span>
+        <span className="data-pill bg-accent/15 text-accent">Prompt-Driven State</span>
         <span className="data-pill">{activeStepLabel}</span>
         {protectedRooms.map((room) => (
           <span key={room} className="data-pill bg-accent/10 text-accent">

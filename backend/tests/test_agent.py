@@ -95,3 +95,40 @@ def test_lights_only_prompt_does_not_turn_off_unrelated_devices() -> None:
     assert "bedroom_fan" not in action_ids
     assert "office_demo_plug_lamp" not in action_ids
     assert "office_demo_plug_lamp" in skipped_ids
+
+
+def test_hot_weather_keeps_hvac_running_for_comfort() -> None:
+    agent = EnergyAgent(MockSmartPlugService())
+    state = build_home_state("peak_pricing")
+    response = agent.plan_and_execute(state, "Lower my bill, but keep the house comfortable.")
+
+    action_ids = {action.device_id for action in response.selected_plan}
+    hvac = next(device for device in response.final_state.devices if device.id == "central_hvac")
+
+    assert "central_hvac" not in action_ids
+    assert hvac.state.is_on is True
+
+
+def test_away_goal_turns_off_hvac_when_weather_is_mild() -> None:
+    agent = EnergyAgent(MockSmartPlugService())
+    state = build_home_state("away_mode")
+    hvac = next(device for device in state.devices if device.id == "central_hvac")
+    hvac.state.is_on = True
+    response = agent.plan_and_execute(state, "I'm leaving for 3 hours. Reduce energy use but keep the house secure.")
+
+    hvac_actions = [action for action in response.selected_plan if action.device_id == "central_hvac"]
+
+    assert hvac_actions
+    assert hvac_actions[0].action_type == "turn_off"
+
+
+def test_sleep_goal_does_not_treat_bedroom_fan_as_required() -> None:
+    agent = EnergyAgent(MockSmartPlugService())
+    state = build_home_state("sleep_mode")
+    response = agent.plan_and_execute(state, "Prepare the house for sleep mode.")
+
+    skipped_ids = {skip.device_id for skip in response.skipped_actions}
+    preserved_titles = {skip.title for skip in response.skipped_actions}
+
+    assert "bedroom_fan" not in skipped_ids
+    assert "Preserve Bedroom Fan" not in preserved_titles

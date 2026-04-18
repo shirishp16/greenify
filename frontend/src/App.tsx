@@ -4,22 +4,7 @@ import { getHomeState, planAndExecute, toggleDevice } from "./api";
 import { HouseScene } from "./components/HouseScene";
 import { SectionCard } from "./components/SectionCard";
 import type { AgentResponse, HomeState } from "./types";
-import { formatClock, formatWatts, toTitleCase } from "./utils";
-
-const STARTER_GOALS = [
-  {
-    label: "Away Mode",
-    goal: "I'm leaving for 3 hours. Reduce energy use but keep the house secure.",
-  },
-  {
-    label: "Peak Pricing",
-    goal: "Lower my bill during peak hours without making the house uncomfortable.",
-  },
-  {
-    label: "Sleep Prep",
-    goal: "Prepare the house for sleep mode.",
-  },
-];
+import { formatWatts, toTitleCase } from "./utils";
 
 function App() {
   const [goal, setGoal] = useState("");
@@ -132,7 +117,7 @@ function App() {
       value: toTitleCase(modeSource?.occupancy ?? "home"),
     },
     {
-      label: "Peak Pricing",
+      label: "Pricing Signal",
       value: modeSource?.peak_pricing ? "Active" : "Off",
     },
     {
@@ -146,30 +131,6 @@ function App() {
     {
       label: "Planner",
       value: plannerText,
-    },
-  ];
-
-  const signalRows = [
-    { label: "Scenario Mode", value: modeSource?.mode_label ?? "--" },
-    { label: "Current Time", value: formatClock(modeSource?.current_time ?? null) },
-    { label: "Return Time", value: formatClock(modeSource?.return_time ?? null) },
-    {
-      label: "Comfort Band",
-      value: modeSource
-        ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F`
-        : "--",
-    },
-    {
-      label: "Protected Rooms",
-      value: parsedIntent?.protected_rooms.length ? parsedIntent.protected_rooms.join(", ") : "None",
-    },
-    {
-      label: "Scope",
-      value: parsedIntent?.action_scope.length ? parsedIntent.action_scope.join(", ") : "All eligible devices",
-    },
-    {
-      label: "Activity",
-      value: parsedIntent?.activity ? toTitleCase(parsedIntent.activity) : "General",
     },
   ];
 
@@ -247,19 +208,6 @@ function App() {
               eyebrow="Workflow"
               subtitle="Tell the agent what outcome you want. It will infer context and constraints automatically."
             >
-              <div className="mb-4 flex flex-wrap gap-2">
-                {STARTER_GOALS.map((starter) => (
-                  <button
-                    key={starter.label}
-                    type="button"
-                    onClick={() => setGoal(starter.goal)}
-                    className="rounded-full border border-stone-900/10 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-accent/35 hover:bg-accent/8"
-                  >
-                    {starter.label}
-                  </button>
-                ))}
-              </div>
-
               <textarea
                 value={goal}
                 onChange={(event) => setGoal(event.target.value)}
@@ -310,20 +258,6 @@ function App() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="3. Current Home Signals"
-              eyebrow="State Context"
-              subtitle="These inputs are what planning logic uses to decide whether actions are safe and worthwhile."
-            >
-              <div className="grid gap-3 sm:grid-cols-2">
-                {signalRows.map((row) => (
-                  <div key={row.label} className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{row.label}</div>
-                    <div className="mt-1 text-sm font-medium text-stone-900">{row.value}</div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
           </div>
 
           <div className="space-y-6">

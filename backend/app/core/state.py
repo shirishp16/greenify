@@ -94,6 +94,16 @@ def _base_devices() -> list[Device]:
             comfort_related=True,
         ),
         Device(
+            id="central_hvac",
+            name="Central HVAC",
+            room="system",
+            type=DeviceType.HVAC,
+            state=DeviceState(is_on=False),
+            power_watts=3500,
+            comfort_related=True,
+            notes="Whole-home heating and cooling system tied to the outdoor temperature and comfort band.",
+        ),
+        Device(
             id="office_monitor",
             name="Office Monitor",
             room="office",
@@ -174,7 +184,7 @@ def build_home_state(scenario_id: str) -> HomeState:
             peak_pricing=False,
             outdoor_temp_f=72,
             comfort_temp_range=ComfortRange(min_f=67, max_f=75),
-            mode_label="Away",
+            mode_label="Prompt Driven",
             devices=devices,
         )
     elif scenario_id == "peak_pricing":
@@ -185,9 +195,12 @@ def build_home_state(scenario_id: str) -> HomeState:
             peak_pricing=True,
             outdoor_temp_f=83,
             comfort_temp_range=ComfortRange(min_f=68, max_f=76),
-            mode_label="Peak Pricing",
+            mode_label="Prompt Driven",
             devices=devices,
         )
+        for device in state.devices:
+            if device.id == "central_hvac":
+                device.state.is_on = True
     elif scenario_id == "sleep_mode":
         state = HomeState(
             occupancy=Occupancy.HOME,
@@ -196,7 +209,7 @@ def build_home_state(scenario_id: str) -> HomeState:
             peak_pricing=False,
             outdoor_temp_f=66,
             comfort_temp_range=ComfortRange(min_f=65, max_f=73),
-            mode_label="Sleep Prep",
+            mode_label="Prompt Driven",
             devices=devices,
         )
         for device in state.devices:

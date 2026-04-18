@@ -87,12 +87,14 @@ Return ONLY a single JSON object. No prose before or after. Schema:
 ALLOWED action_type VALUES (closed set — anything else will be rejected)
 -----------------------------------------------------------------------
 - "turn_off"          — applies to light | screen | fan | smart_plug | ev_charger.
+                         Also applies to hvac with target_state MUST have is_on=false.
                          target_state MUST have is_on=false.
                          For lights/plugs also set brightness=0.
                          For screens also set screen_on=false.
                          For fans also set rotation_rpm=0.
                          For EV chargers use "pause_charging" instead.
 - "turn_on"           — applies to light | screen | fan | smart_plug | appliance.
+                         Also applies to hvac with target_state MUST have is_on=true.
                          target_state MUST have is_on=true.
                          For lights/plugs set brightness in (0.0, 1.0]. For security lights in away mode prefer >= 0.8.
                          For screens set screen_on=true.
@@ -132,6 +134,8 @@ PLANNING GUIDANCE
   than OFF — prefer "turn_on" with high brightness over skipping them.
 - Respect `comfort_related` devices: prefer "set_brightness" / "set_fan_speed" reductions over hard off,
   when the resident is present. When the home is asleep or away, full off is acceptable.
+- Treat `hvac` as a whole-home comfort system. When outdoor temperature is outside the comfort band, prefer it ON
+  unless the prompt is explicitly cost-sensitive or the resident is away and comfort is not being preserved.
 - Order `plan` by impact: highest-watt reductions first.
 - Devices of type `appliance` (washer, dryer, dishwasher) use only `turn_on` and `turn_off`.
   They have no brightness, rotation_rpm, screen_on, or charger_status. All those fields must be null.

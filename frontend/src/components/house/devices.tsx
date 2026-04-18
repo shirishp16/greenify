@@ -1,8 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import type { Group, Mesh, PointLight } from "three";
-import { CatmullRomCurve3, Color, Vector3 } from "three";
+import { Color } from "three";
 
 function useLerpLight(lightRef: React.RefObject<PointLight | null>, targetIntensity: number) {
   useFrame(() => {
@@ -228,6 +228,51 @@ export function EVCharger({
   );
 }
 
+export function HVACUnit({
+  position,
+  isOn,
+}: {
+  position: [number, number, number];
+  isOn: boolean;
+}) {
+  const fanRef = useRef<Group>(null);
+  const ringRef = useRef<Mesh>(null);
+  const glowRef = useRef<PointLight>(null);
+
+  useFrame((_state, delta) => {
+    if (!fanRef.current) {
+      return;
+    }
+    const targetSpeed = isOn ? Math.PI * 4 : 0;
+    fanRef.current.rotation.z += targetSpeed * delta;
+  });
+
+  useLerpEmissive(ringRef, isOn ? 1.8 : 0, isOn ? "#38bdf8" : "#64748b");
+  useLerpLight(glowRef, isOn ? 1.2 : 0);
+
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.45, 0]} castShadow>
+        <boxGeometry args={[1, 0.9, 0.65]} />
+        <meshStandardMaterial color="#cfd6dc" roughness={0.45} metalness={0.15} />
+      </mesh>
+      <mesh ref={ringRef} position={[0, 0.45, 0.33]} castShadow>
+        <torusGeometry args={[0.22, 0.035, 16, 32]} />
+        <meshStandardMaterial color="#334155" emissive="#38bdf8" emissiveIntensity={0} />
+      </mesh>
+      <group ref={fanRef} position={[0, 0.45, 0.34]}>
+        {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((rotation) => (
+          <mesh key={rotation} rotation={[0, 0, rotation]} castShadow>
+            <boxGeometry args={[0.28, 0.04, 0.02]} />
+            <meshStandardMaterial color={isOn ? "#475569" : "#94a3b8"} />
+          </mesh>
+        ))}
+      </group>
+      <pointLight ref={glowRef} position={[0, 0.45, 0.8]} distance={2.6} intensity={0} color="#7dd3fc" />
+    </group>
+  );
+}
+
 export function TeslaCar({
   position,
   isCharging,
@@ -235,108 +280,32 @@ export function TeslaCar({
   position: [number, number, number];
   isCharging: boolean;
 }) {
-  const bodyColor = isCharging ? "#dc2626" : "#a12828";
+  const accentRef = useRef<Mesh>(null);
+  useLerpEmissive(accentRef, isCharging ? 1.6 : 0.2, isCharging ? "#38bdf8" : "#64748b");
 
   return (
     <group position={position}>
-      {/* Chassis */}
-      <mesh position={[0, 0.24, 0.04]} castShadow>
-        <boxGeometry args={[1.74, 0.2, 2.95]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.34} />
+      <mesh position={[0, 0.34, 0]} castShadow>
+        <boxGeometry args={[1.45, 0.38, 2.5]} />
+        <meshStandardMaterial color="#d7dce2" metalness={0.35} roughness={0.3} />
       </mesh>
-      {/* Main body shell */}
-      <mesh position={[0, 0.44, -0.04]} castShadow>
-        <boxGeometry args={[1.62, 0.28, 2.55]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.34} />
+      <mesh position={[0, 0.62, -0.05]} castShadow>
+        <boxGeometry args={[1.2, 0.28, 1.25]} />
+        <meshStandardMaterial color="#c2c9d1" metalness={0.3} roughness={0.28} />
       </mesh>
-      {/* Front fascia */}
-      <mesh position={[0, 0.27, 1.5]} castShadow>
-        <boxGeometry args={[1.4, 0.16, 0.34]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.34} />
+      <mesh ref={accentRef} position={[0.55, 0.34, 1.12]} castShadow>
+        <boxGeometry args={[0.08, 0.08, 0.08]} />
+        <meshStandardMaterial color="#1e293b" emissive="#38bdf8" emissiveIntensity={0} />
       </mesh>
-      {/* Hood slope */}
-      <mesh position={[0, 0.54, 0.92]} rotation={[-0.28, 0, 0]} castShadow>
-        <boxGeometry args={[1.36, 0.07, 0.9]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.38} metalness={0.35} />
-      </mesh>
-      {/* Windshield */}
-      <mesh position={[0, 0.66, 0.55]} rotation={[-0.62, 0, 0]} castShadow>
-        <boxGeometry args={[1.06, 0.04, 0.62]} />
-        <meshStandardMaterial color="#9aa5b1" roughness={0.12} metalness={0.78} opacity={0.72} transparent />
-      </mesh>
-      {/* Roof */}
-      <mesh position={[0, 0.76, 0.06]} castShadow>
-        <boxGeometry args={[1.06, 0.12, 0.94]} />
-        <meshStandardMaterial color="#8b1f1f" roughness={0.38} metalness={0.3} />
-      </mesh>
-      {/* Rear glass */}
-      <mesh position={[0, 0.64, -0.45]} rotation={[0.48, 0, 0]} castShadow>
-        <boxGeometry args={[1.02, 0.04, 0.56]} />
-        <meshStandardMaterial color="#9aa5b1" roughness={0.12} metalness={0.78} opacity={0.72} transparent />
-      </mesh>
-      {/* Trunk slope */}
-      <mesh position={[0, 0.52, -1.0]} rotation={[0.14, 0, 0]} castShadow>
-        <boxGeometry args={[1.2, 0.08, 0.86]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.38} metalness={0.35} />
-      </mesh>
-      {/* Rear bumper */}
-      <mesh position={[0, 0.24, -1.48]} castShadow>
-        <boxGeometry args={[1.34, 0.16, 0.3]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.34} />
-      </mesh>
-      {/* Side skirts */}
-      <mesh position={[-0.88, 0.24, -0.02]} castShadow>
-        <boxGeometry args={[0.06, 0.16, 2.48]} />
-        <meshStandardMaterial color="#7a1a1a" roughness={0.45} />
-      </mesh>
-      <mesh position={[0.88, 0.24, -0.02]} castShadow>
-        <boxGeometry args={[0.06, 0.16, 2.48]} />
-        <meshStandardMaterial color="#7a1a1a" roughness={0.45} />
-      </mesh>
-      {/* Front light bar */}
-      <mesh position={[0, 0.33, 1.64]} castShadow>
-        <boxGeometry args={[1.14, 0.04, 0.03]} />
-        <meshStandardMaterial color="#f8fafc" emissive="#f8fafc" emissiveIntensity={0.85} />
-      </mesh>
-      {/* Rear light bar */}
-      <mesh position={[0, 0.32, -1.62]} castShadow>
-        <boxGeometry args={[1.06, 0.04, 0.03]} />
-        <meshStandardMaterial color="#f87171" emissive="#ef4444" emissiveIntensity={0.78} />
-      </mesh>
-      {/* Wheels */}
       {[
-        [-0.74, 0.16, 1.02],
-        [0.74, 0.16, 1.02],
-        [-0.74, 0.16, -1.04],
-        [0.74, 0.16, -1.04],
-      ].map((wheelPos) => (
-        <mesh key={wheelPos.join(",")} position={wheelPos as [number, number, number]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.18, 0.18, 0.15, 20]} />
-          <meshStandardMaterial color="#111827" roughness={0.9} />
-        </mesh>
-      ))}
-      {/* Wheel caps */}
-      {[
-        [-0.82, 0.16, 1.02],
-        [0.82, 0.16, 1.02],
-        [-0.82, 0.16, -1.04],
-        [0.82, 0.16, -1.04],
-      ].map((capPos) => (
-        <mesh key={`cap-${capPos.join(",")}`} position={capPos as [number, number, number]} castShadow>
-          <cylinderGeometry args={[0.065, 0.065, 0.025, 12]} />
-          <meshStandardMaterial color="#9ca3af" metalness={0.6} roughness={0.35} />
-        </mesh>
-      ))}
-      {/* Wheel arch shadows */}
-      {[
-        [-0.66, 0.35, 1.02],
-        [0.66, 0.35, 1.02],
-        [-0.66, 0.35, -1.04],
-        [0.66, 0.35, -1.04],
-      ].map((archPos) => (
-        <mesh key={`arch-${archPos.join(",")}`} position={archPos as [number, number, number]} castShadow>
-          <boxGeometry args={[0.26, 0.12, 0.28]} />
-          <meshStandardMaterial color="#701818" roughness={0.55} />
+        [-0.58, 0.1, -0.82],
+        [0.58, 0.1, -0.82],
+        [-0.58, 0.1, 0.82],
+        [0.58, 0.1, 0.82],
+      ].map((wheel) => (
+        <mesh key={wheel.join(",")} position={wheel as [number, number, number]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.18, 0.18, 0.14, 20]} />
+          <meshStandardMaterial color="#1f2937" roughness={0.7} />
         </mesh>
       ))}
     </group>
@@ -352,31 +321,25 @@ export function ChargingCable({
   end: [number, number, number];
   active: boolean;
 }) {
-  const curve = useMemo(() => {
-    const startPoint = new Vector3(...start);
-    const endPoint = new Vector3(...end);
-    const arcHeight = Math.max(startPoint.y, endPoint.y) + 0.35;
-    const midZ = (startPoint.z + endPoint.z) / 2;
-
-    return new CatmullRomCurve3([
-      startPoint,
-      new Vector3(startPoint.x - 0.12, arcHeight, midZ + 0.3),
-      new Vector3(endPoint.x + 0.15, arcHeight - 0.1, midZ - 0.2),
-      endPoint,
-    ]);
-  }, [start, end]);
+  const mid: [number, number, number] = [
+    (start[0] + end[0]) / 2,
+    Math.max(start[1], end[1]) + 0.2,
+    (start[2] + end[2]) / 2,
+  ];
 
   return (
-    <mesh castShadow>
-      <tubeGeometry args={[curve, 32, 0.023, 10, false]} />
-      <meshStandardMaterial
-        color={active ? "#0f172a" : "#334155"}
-        roughness={0.45}
-        metalness={0.25}
-        emissive={active ? "#22c55e" : "#000000"}
-        emissiveIntensity={active ? 0.25 : 0}
-      />
-    </mesh>
+    <group>
+      {[start, mid, end].map((point, index) => (
+        <mesh key={`${point.join(",")}-${index}`} position={point} castShadow>
+          <sphereGeometry args={[0.035, 12, 12]} />
+          <meshStandardMaterial color={active ? "#38bdf8" : "#475569"} emissive={active ? "#38bdf8" : "#000000"} emissiveIntensity={active ? 0.7 : 0} />
+        </mesh>
+      ))}
+      <mesh position={mid} castShadow>
+        <boxGeometry args={[0.05, 0.05, Math.hypot(end[2] - start[2], end[0] - start[0])]} />
+        <meshStandardMaterial color={active ? "#0f172a" : "#334155"} />
+      </mesh>
+    </group>
   );
 }
 

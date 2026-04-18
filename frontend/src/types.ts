@@ -1,6 +1,6 @@
 export type Occupancy = "home" | "away" | "asleep";
 
-export type DeviceType = "light" | "screen" | "fan" | "fridge" | "ev_charger" | "smart_plug";
+export type DeviceType = "light" | "screen" | "fan" | "hvac" | "fridge" | "ev_charger" | "smart_plug" | "appliance";
 
 export interface DeviceState {
   is_on: boolean;
