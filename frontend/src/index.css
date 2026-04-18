@@ -30,7 +30,7 @@ body {
 }
 
 .panel {
-  @apply rounded-3xl border border-stone-900/10 bg-panel/90 shadow-glow backdrop-blur-xl;
+  @apply rounded-3xl border border-stone-900/10 border-t-2 border-t-accent/20 bg-panel/90 shadow-glow backdrop-blur-xl;
 }
 
 .panel-title {
