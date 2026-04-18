@@ -8,10 +8,21 @@ interface RoomShellProps {
   children?: ReactNode;
   accent?: string;
   highlighted?: boolean;
+  labelPosition?: "top" | "front";
 }
 
-export function RoomShell({ position, size, label, children, accent = "#b8956a", highlighted = false }: RoomShellProps) {
+export function RoomShell({
+  position,
+  size,
+  label,
+  children,
+  accent = "#b8956a",
+  highlighted = false,
+  labelPosition = "top",
+}: RoomShellProps) {
   const [width, height, depth] = size;
+  const labelY = labelPosition === "front" ? height / 2 - 0.2 : height / 2 + 0.3;
+  const labelZ = labelPosition === "front" ? depth / 2 + 0.14 : depth / 2 - 0.3;
 
   return (
     <group position={position}>
@@ -42,7 +53,7 @@ export function RoomShell({ position, size, label, children, accent = "#b8956a",
         <meshStandardMaterial color="#e8e2da" roughness={0.5} />
       </mesh>
       <Text
-        position={[0, height / 2 + 0.3, depth / 2 - 0.3]}
+        position={[0, labelY, labelZ]}
         fontSize={0.28}
         color={highlighted ? "#0f766e" : "#5c4a3a"}
         anchorX="center"
