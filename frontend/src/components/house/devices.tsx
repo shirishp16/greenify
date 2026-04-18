@@ -48,11 +48,11 @@ export function Lamp({
     <group position={position}>
       <mesh position={[0, 0.35, 0]} castShadow>
         <cylinderGeometry args={[0.05, 0.08, 0.7, 16]} />
-        <meshStandardMaterial color="#6b7280" metalness={0.5} roughness={0.35} />
+        <meshStandardMaterial color="#7a6655" metalness={0.3} roughness={0.5} />
       </mesh>
       <mesh ref={bulbRef} position={[0, 0.82, 0]} castShadow>
         <sphereGeometry args={[0.14, 16, 16]} />
-        <meshStandardMaterial color={isOn ? "#fff7c2" : "#475569"} emissive={color} emissiveIntensity={0} />
+        <meshStandardMaterial color={isOn ? "#fff7c2" : "#c8bfb0"} emissive={color} emissiveIntensity={0} />
       </mesh>
       <pointLight ref={lightRef} position={[0, 1, 0]} distance={3.2} intensity={0} color={color} />
     </group>
@@ -83,11 +83,11 @@ export function ScreenDevice({
       </mesh>
       <mesh position={[0, 0.1, 0]} castShadow>
         <cylinderGeometry args={[0.03, 0.05, 0.25, 12]} />
-        <meshStandardMaterial color="#94a3b8" />
+        <meshStandardMaterial color="#8a7a6a" />
       </mesh>
       <mesh position={[0, 0, 0]} castShadow>
         <boxGeometry args={[0.35, 0.04, 0.2]} />
-        <meshStandardMaterial color="#334155" />
+        <meshStandardMaterial color="#7a5c4a" />
       </mesh>
     </group>
   );
@@ -114,13 +114,13 @@ export function Fan({
     <group position={position}>
       <mesh position={[0, 0.2, 0]} castShadow>
         <cylinderGeometry args={[0.08, 0.08, 0.35, 16]} />
-        <meshStandardMaterial color="#94a3b8" />
+        <meshStandardMaterial color="#8a7a6a" />
       </mesh>
       <group ref={groupRef} position={[0, 0.48, 0]}>
         {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((rotation) => (
           <mesh key={rotation} rotation={[0, rotation, 0]} castShadow>
             <boxGeometry args={[0.75, 0.03, 0.12]} />
-            <meshStandardMaterial color={rpm > 0 ? "#22d3ee" : "#475569"} />
+            <meshStandardMaterial color={rpm > 0 ? "#4a7c59" : "#8a7a6a"} />
           </mesh>
         ))}
       </group>
@@ -133,15 +133,15 @@ export function Fridge({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 0.7, 0]} castShadow>
         <boxGeometry args={[0.7, 1.4, 0.75]} />
-        <meshStandardMaterial color="#dbeafe" />
+        <meshStandardMaterial color="#e8e2da" roughness={0.4} />
       </mesh>
       <mesh position={[0.29, 0.82, 0.3]} castShadow>
         <boxGeometry args={[0.04, 0.32, 0.04]} />
-        <meshStandardMaterial color="#64748b" />
+        <meshStandardMaterial color="#8a7a6a" metalness={0.4} roughness={0.4} />
       </mesh>
       <mesh position={[0, 1.15, 0.38]} castShadow>
         <boxGeometry args={[0.08, 0.08, 0.04]} />
-        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.2} />
+        <meshStandardMaterial color="#4a7c59" emissive="#4a7c59" emissiveIntensity={1.2} />
       </mesh>
     </group>
   );
@@ -155,21 +155,21 @@ export function EVCharger({
   status: string;
 }) {
   const ringRef = useRef<Mesh>(null);
-  useLerpEmissive(ringRef, status === "charging" ? 2.5 : 0.35, status === "charging" ? "#22c55e" : "#f59e0b");
+  useLerpEmissive(ringRef, status === "charging" ? 2.5 : 0.35, status === "charging" ? "#4a7c59" : "#c17a3a");
 
   return (
     <group position={position}>
       <mesh position={[0, 0.7, 0]} castShadow>
         <boxGeometry args={[0.5, 1.4, 0.4]} />
-        <meshStandardMaterial color="#1e293b" />
+        <meshStandardMaterial color="#2c3630" roughness={0.5} />
       </mesh>
       <mesh ref={ringRef} position={[0, 0.92, 0.21]} castShadow>
         <torusGeometry args={[0.12, 0.04, 12, 24]} />
-        <meshStandardMaterial color="#0f172a" emissive="#22c55e" emissiveIntensity={0.3} />
+        <meshStandardMaterial color="#1a2420" emissive="#4a7c59" emissiveIntensity={0.3} />
       </mesh>
       <mesh position={[0.22, 0.3, 0]} rotation={[0, 0, 0.35]} castShadow>
         <cylinderGeometry args={[0.03, 0.03, 0.65, 10]} />
-        <meshStandardMaterial color="#0f172a" />
+        <meshStandardMaterial color="#1a2420" />
       </mesh>
     </group>
   );
@@ -190,19 +190,19 @@ export function PorchLight({
   const bulbRef = useRef<Mesh>(null);
   const targetIntensity = isOn ? 1.4 * (brightness ?? 0.6) : 0;
   useLerpLight(lightRef, targetIntensity);
-  useLerpEmissive(bulbRef, isOn ? 1.8 : 0, scheduled ? "#f59e0b" : "#fde68a");
+  useLerpEmissive(bulbRef, isOn ? 1.8 : 0, scheduled ? "#c17a3a" : "#fde68a");
 
   return (
     <group position={position}>
       <mesh position={[0, 0.28, 0]} castShadow>
         <boxGeometry args={[0.18, 0.45, 0.12]} />
-        <meshStandardMaterial color="#334155" />
+        <meshStandardMaterial color="#6b5c4a" roughness={0.5} />
       </mesh>
       <mesh ref={bulbRef} position={[0, 0.22, 0.08]} castShadow>
         <sphereGeometry args={[0.08, 16, 16]} />
         <meshStandardMaterial
-          color={isOn ? "#fff7c2" : "#475569"}
-          emissive={scheduled ? "#f59e0b" : "#fde68a"}
+          color={isOn ? "#fff7c2" : "#c8bfb0"}
+          emissive={scheduled ? "#c17a3a" : "#fde68a"}
           emissiveIntensity={0}
         />
       </mesh>

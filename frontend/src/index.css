@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  color: #f8fafc;
+  color: #2c2420;
   background:
-    radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.16), transparent 22%),
-    linear-gradient(180deg, #07111f 0%, #040b14 100%);
+    radial-gradient(circle at top left, rgba(74, 124, 89, 0.10), transparent 35%),
+    radial-gradient(circle at top right, rgba(193, 122, 58, 0.09), transparent 28%),
+    linear-gradient(180deg, #f5f0e8 0%, #ede8de 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,13 +30,13 @@ body {
 }
 
 .panel {
-  @apply rounded-3xl border border-white/10 bg-panel/80 shadow-glow backdrop-blur-xl;
+  @apply rounded-3xl border border-stone-900/10 bg-panel/90 shadow-glow backdrop-blur-xl;
 }
 
 .panel-title {
-  @apply text-sm font-semibold uppercase tracking-[0.22em] text-slate-300;
+  @apply text-sm font-semibold uppercase tracking-[0.22em] text-stone-500;
 }
 
 .data-pill {
-  @apply rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200;
+  @apply rounded-full border border-stone-900/10 bg-stone-900/5 px-3 py-1 text-xs font-medium text-stone-600;
 }

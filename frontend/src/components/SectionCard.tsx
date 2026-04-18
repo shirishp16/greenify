@@ -16,7 +16,7 @@ export function SectionCard({ title, children, eyebrow }: SectionCardProps) {
       className="panel p-5"
     >
       {eyebrow ? <div className="mb-2 text-xs uppercase tracking-[0.28em] text-accent">{eyebrow}</div> : null}
-      <h2 className="mb-4 text-lg font-semibold text-white">{title}</h2>
+      <h2 className="mb-4 text-lg font-semibold text-stone-900">{title}</h2>
       {children}
     </motion.section>
   );

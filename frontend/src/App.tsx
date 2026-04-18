@@ -104,7 +104,7 @@ function App() {
   const modeSource = displayedState ?? serverState;
 
   return (
-    <div className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+    <div className="min-h-screen px-4 py-6 text-stone-800 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px]">
         <motion.header
           initial={{ opacity: 0, y: 18 }}
@@ -113,8 +113,8 @@ function App() {
         >
           <div>
             <div className="mb-2 text-sm uppercase tracking-[0.35em] text-accent">Greenify</div>
-            <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-              An AI Energy Action Agent that turns intent into autonomous home savings.
+            <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">
+              AI-powered energy agent — turns intent into autonomous home savings.
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -139,8 +139,8 @@ function App() {
                       onClick={() => void handleScenarioReset(preset.id)}
                       className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                         scenarioId === preset.id
-                          ? "bg-accent text-slate-950"
-                          : "border border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+                          ? "bg-accent text-white"
+                          : "border border-stone-900/15 bg-stone-900/5 text-stone-700 hover:bg-stone-900/10"
                       }`}
                       disabled={isLoading || isRunning}
                     >
@@ -152,14 +152,14 @@ function App() {
                   value={goal}
                   onChange={(event) => setGoal(event.target.value)}
                   rows={5}
-                  className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-500"
+                  className="mb-4 w-full rounded-2xl border border-stone-900/10 bg-stone-50/90 p-4 text-sm text-stone-800 outline-none ring-0 placeholder:text-stone-400"
                   placeholder="Describe the outcome you want."
                 />
                 <button
                   type="button"
                   onClick={() => void handleRunAgent()}
                   disabled={isLoading || isRunning || !goal.trim()}
-                  className="w-full rounded-2xl bg-gradient-to-r from-accent to-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-2xl bg-gradient-to-r from-accent to-green-500 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isRunning ? "Executing plan..." : "Run Agent"}
                 </button>
@@ -167,22 +167,22 @@ function App() {
               </SectionCard>
 
               <SectionCard title="Mode Signals" eyebrow="State">
-                <div className="space-y-3 text-sm text-slate-200">
-                  <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+                <div className="space-y-3 text-sm text-stone-700">
+                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
                     <span>Mode</span>
-                    <span className="font-medium text-white">{modeSource?.mode_label ?? "--"}</span>
+                    <span className="font-medium text-stone-900">{modeSource?.mode_label ?? "--"}</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
                     <span>Current time</span>
-                    <span className="font-medium text-white">{formatClock(modeSource?.current_time ?? null)}</span>
+                    <span className="font-medium text-stone-900">{formatClock(modeSource?.current_time ?? null)}</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
                     <span>Return time</span>
-                    <span className="font-medium text-white">{formatClock(modeSource?.return_time ?? null)}</span>
+                    <span className="font-medium text-stone-900">{formatClock(modeSource?.return_time ?? null)}</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
                     <span>Comfort band</span>
-                    <span className="font-medium text-white">
+                    <span className="font-medium text-stone-900">
                       {modeSource ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F` : "--"}
                     </span>
                   </div>
@@ -191,17 +191,17 @@ function App() {
 
               <SectionCard title="Energy Delta" eyebrow="Impact">
                 <div className="space-y-3">
-                  <div className="rounded-2xl bg-white/5 p-4">
-                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-slate-400">Before</div>
-                    <div className="text-3xl font-semibold text-white">{formatWatts(agentRun?.watts_before ?? serverState?.total_power_watts ?? 0)}</div>
+                  <div className="rounded-2xl bg-stone-900/5 p-4">
+                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-stone-500">Before</div>
+                    <div className="text-3xl font-semibold text-stone-900">{formatWatts(agentRun?.watts_before ?? serverState?.total_power_watts ?? 0)}</div>
                   </div>
-                  <div className="rounded-2xl bg-white/5 p-4">
-                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-slate-400">After</div>
-                    <div className="text-3xl font-semibold text-white">{formatWatts(agentRun?.watts_after ?? displayedState?.total_power_watts ?? 0)}</div>
+                  <div className="rounded-2xl bg-stone-900/5 p-4">
+                    <div className="mb-1 text-xs uppercase tracking-[0.22em] text-stone-500">After</div>
+                    <div className="text-3xl font-semibold text-stone-900">{formatWatts(agentRun?.watts_after ?? displayedState?.total_power_watts ?? 0)}</div>
                   </div>
                   <div className="rounded-2xl border border-success/30 bg-success/10 p-4">
                     <div className="mb-1 text-xs uppercase tracking-[0.22em] text-success">Saved</div>
-                    <div className="text-3xl font-semibold text-white">{formatWatts(agentRun?.watts_saved ?? 0)}</div>
+                    <div className="text-3xl font-semibold text-stone-900">{formatWatts(agentRun?.watts_saved ?? 0)}</div>
                   </div>
                 </div>
               </SectionCard>
@@ -210,19 +210,19 @@ function App() {
 
           <div className="space-y-6">
             <SectionCard title="Agent Reasoning" eyebrow="Interpretation">
-              <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/10 p-4 text-sm text-slate-100">
+              <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/10 p-4 text-sm text-stone-800">
                 {agentRun?.interpreted_goal ?? "Run a scenario to see how Greenify interprets and executes the goal."}
               </div>
-              <p className="mb-4 text-sm leading-6 text-slate-300">
+              <p className="mb-4 text-sm leading-6 text-stone-600">
                 {agentRun?.reasoning_summary ??
                   "The agent will inspect home state, preserve essential/security devices, and sequence the highest-value energy actions first."}
               </p>
               <div className="grid gap-4 lg:grid-cols-2">
                 <div>
                   <div className="panel-title mb-2">Assumptions</div>
-                  <ul className="space-y-2 text-sm text-slate-300">
+                  <ul className="space-y-2 text-sm text-stone-600">
                     {(agentRun?.assumptions ?? []).map((item) => (
-                      <li key={item} className="rounded-2xl bg-white/5 px-3 py-2">
+                      <li key={item} className="rounded-2xl bg-stone-900/5 px-3 py-2">
                         {item}
                       </li>
                     ))}
@@ -230,9 +230,9 @@ function App() {
                 </div>
                 <div>
                   <div className="panel-title mb-2">Constraints</div>
-                  <ul className="space-y-2 text-sm text-slate-300">
+                  <ul className="space-y-2 text-sm text-stone-600">
                     {(agentRun?.constraints_applied ?? []).map((item) => (
-                      <li key={item} className="rounded-2xl bg-white/5 px-3 py-2">
+                      <li key={item} className="rounded-2xl bg-stone-900/5 px-3 py-2">
                         {item}
                       </li>
                     ))}
@@ -249,15 +249,15 @@ function App() {
                     <div
                       key={action.id}
                       className={`rounded-2xl border px-4 py-3 transition ${
-                        isActive ? "border-accent/50 bg-accent/10" : "border-white/10 bg-white/5"
+                        isActive ? "border-accent/40 bg-accent/8" : "border-stone-900/10 bg-stone-900/5"
                       }`}
                     >
                       <div className="mb-1 flex items-center justify-between gap-4">
-                        <div className="font-medium text-white">{action.title}</div>
+                        <div className="font-medium text-stone-900">{action.title}</div>
                         <div className="text-sm text-accentWarm">-{formatWatts(action.estimated_savings_watts)}</div>
                       </div>
-                      <div className="text-sm text-slate-300">{action.description}</div>
-                      <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{action.reason}</div>
+                      <div className="text-sm text-stone-600">{action.description}</div>
+                      <div className="mt-2 text-xs uppercase tracking-[0.18em] text-stone-400">{action.reason}</div>
                     </div>
                   );
                 })}
@@ -267,9 +267,9 @@ function App() {
             <SectionCard title="Skipped by Constraints" eyebrow="No Action">
               <div className="space-y-3">
                 {(agentRun?.skipped_actions ?? []).map((item) => (
-                  <div key={item.device_id} className="rounded-2xl border border-amber-300/15 bg-amber-300/5 px-4 py-3">
-                    <div className="font-medium text-white">{item.title}</div>
-                    <div className="text-sm text-slate-300">{item.reason}</div>
+                  <div key={item.device_id} className="rounded-2xl border border-accentWarm/20 bg-accentWarm/8 px-4 py-3">
+                    <div className="font-medium text-stone-900">{item.title}</div>
+                    <div className="text-sm text-stone-600">{item.reason}</div>
                   </div>
                 ))}
               </div>
@@ -283,7 +283,7 @@ function App() {
                     <div
                       key={item.action_id}
                       className={`rounded-2xl px-4 py-3 text-sm transition ${
-                        reached ? "bg-cyan-300/10 text-slate-100" : "bg-white/5 text-slate-400"
+                        reached ? "bg-accent/10 text-stone-800" : "bg-stone-900/5 text-stone-400"
                       }`}
                     >
                       <div className="mb-1 flex items-center justify-between gap-4">
