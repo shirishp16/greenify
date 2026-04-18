@@ -11,13 +11,22 @@ interface HouseSceneProps {
   activeStepLabel: string;
   protectedRooms?: string[];
   actionScope?: string[];
+  onDeviceToggle?: (deviceId: string) => void;
 }
 
 function findDevice(homeState: HomeState, deviceId: string) {
   return homeState.devices.find((device) => device.id === deviceId);
 }
 
-function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; protectedRooms?: string[] }) {
+function HouseModel({
+  homeState,
+  protectedRooms = [],
+  onDeviceToggle,
+}: {
+  homeState: HomeState;
+  protectedRooms?: string[];
+  onDeviceToggle?: (deviceId: string) => void;
+}) {
   const livingLamp = findDevice(homeState, "living_room_lamp");
   const livingTv = findDevice(homeState, "living_room_tv");
   const kitchenLight = findDevice(homeState, "kitchen_ceiling_light");
@@ -118,6 +127,9 @@ function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; 
           brightness={smartPlugLamp?.state.brightness}
           color="#5eead4"
           badge="Smart Plug"
+          onClick={
+            onDeviceToggle && smartPlugLamp ? () => onDeviceToggle(smartPlugLamp.id) : undefined
+          }
         />
         {/* Desk */}
         <mesh position={[0.6, -1.08, -0.28]} castShadow>
@@ -165,7 +177,13 @@ function HouseModel({ homeState, protectedRooms = [] }: { homeState: HomeState; 
   );
 }
 
-export function HouseScene({ homeState, activeStepLabel, protectedRooms = [], actionScope = [] }: HouseSceneProps) {
+export function HouseScene({
+  homeState,
+  activeStepLabel,
+  protectedRooms = [],
+  actionScope = [],
+  onDeviceToggle,
+}: HouseSceneProps) {
   const [showActiveDevices, setShowActiveDevices] = useState(false);
   const activeDevices = useMemo(
     () =>
@@ -253,7 +271,9 @@ export function HouseScene({ homeState, activeStepLabel, protectedRooms = [], ac
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
         />
-        {homeState ? <HouseModel homeState={homeState} protectedRooms={protectedRooms} /> : null}
+        {homeState ? (
+          <HouseModel homeState={homeState} protectedRooms={protectedRooms} onDeviceToggle={onDeviceToggle} />
+        ) : null}
         <Environment preset="apartment" />
         <OrbitControls
           enablePan={false}

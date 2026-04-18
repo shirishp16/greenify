@@ -939,7 +939,7 @@ class EnergyAgent:
             planner_notice: str | None = None
         else:
             candidates, skipped_actions, constraints_applied = self._candidate_actions(home_state, intent)
-            selected_plan = self._prioritize(candidates, intent)
+            selected_plan = self._prioritize(candidates, intent, home_state)
             assumptions = self._rules_assumptions(home_state)
             reasoning_summary = self._rules_reasoning_summary(intent, selected_plan, skipped_actions)
             interpreted_goal = (

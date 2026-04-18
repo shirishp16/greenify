@@ -27,3 +27,9 @@ export function planAndExecute(goal: string): Promise<AgentResponse> {
     body: JSON.stringify({ goal }),
   });
 }
+
+export function toggleDevice(deviceId: string): Promise<HomeState> {
+  return request<HomeState>(`/api/device/${encodeURIComponent(deviceId)}/toggle`, {
+    method: "POST",
+  });
+}
