@@ -44,6 +44,7 @@ function App() {
     playbackVersion.current += 1;
     setIsRunning(false);
     setScenarioId(nextScenarioId);
+
     const preset = scenarioPresets.find((item) => item.id === nextScenarioId);
     if (preset) {
       setGoal(preset.goal);
@@ -68,6 +69,7 @@ function App() {
   async function playback(response: AgentResponse) {
     playbackVersion.current += 1;
     const version = playbackVersion.current;
+
     setIsRunning(true);
     setActiveStep(0);
     setActiveStepLabel(response.snapshots[0]?.label ?? "Initial state");
@@ -78,6 +80,7 @@ function App() {
         setIsRunning(false);
         return;
       }
+
       setDisplayedState(snapshot.state);
       setActiveStep(snapshot.step);
       setActiveStepLabel(snapshot.label);
@@ -92,6 +95,7 @@ function App() {
     try {
       setError(null);
       setIsRunning(true);
+
       const response = await planAndExecute(goal);
       setAgentRun(response);
       await playback(response);
@@ -117,6 +121,7 @@ function App() {
               AI-powered energy agent — turns intent into autonomous home savings.
             </h1>
           </div>
+
           <div className="flex flex-wrap gap-2">
             <span className="data-pill">Occupancy: {toTitleCase(modeSource?.occupancy ?? "home")}</span>
             <span className="data-pill">Peak pricing: {modeSource?.peak_pricing ? "Active" : "Off"}</span>
@@ -156,21 +161,24 @@ function App() {
                     </button>
                   ))}
                 </div>
+
                 <textarea
                   value={goal}
                   onChange={(event) => setGoal(event.target.value)}
                   rows={5}
-                  className="mb-4 w-full rounded-2xl border border-stone-900/10 bg-stone-50/90 p-4 text-sm text-stone-800 outline-none ring-0 placeholder:text-stone-400"
+                  className="mb-4 w-full rounded-2xl border border-stone-900/10 bg-stone-50/90 p-4 text-sm text-stone-800 outline-none transition focus:border-accent/40 focus:ring-2 focus:ring-accent/15 placeholder:text-stone-400"
                   placeholder="Describe the outcome you want."
                 />
+
                 <button
                   type="button"
                   onClick={() => void handleRunAgent()}
                   disabled={isLoading || isRunning || !goal.trim()}
-                  className="w-full rounded-2xl bg-gradient-to-r from-accent to-green-500 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-2xl bg-gradient-to-r from-accent to-green-500 px-4 py-3 text-sm font-semibold text-white ring-1 ring-accent/30 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isRunning ? "Executing plan..." : "Run Agent"}
                 </button>
+
                 {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
               </SectionCard>
 
@@ -191,7 +199,9 @@ function App() {
                   <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
                     <span>Comfort band</span>
                     <span className="font-medium text-stone-900">
-                      {modeSource ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F` : "--"}
+                      {modeSource
+                        ? `${modeSource.comfort_temp_range.min_f}°F - ${modeSource.comfort_temp_range.max_f}°F`
+                        : "--"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl bg-stone-900/5 px-4 py-3">
@@ -213,11 +223,15 @@ function App() {
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-stone-900/5 p-4">
                     <div className="mb-1 text-xs uppercase tracking-[0.22em] text-stone-500">Before</div>
-                    <div className="text-3xl font-semibold text-stone-900">{formatWatts(agentRun?.watts_before ?? serverState?.total_power_watts ?? 0)}</div>
+                    <div className="text-3xl font-semibold text-stone-900">
+                      {formatWatts(agentRun?.watts_before ?? serverState?.total_power_watts ?? 0)}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-stone-900/5 p-4">
                     <div className="mb-1 text-xs uppercase tracking-[0.22em] text-stone-500">After</div>
-                    <div className="text-3xl font-semibold text-stone-900">{formatWatts(agentRun?.watts_after ?? displayedState?.total_power_watts ?? 0)}</div>
+                    <div className="text-3xl font-semibold text-stone-900">
+                      {formatWatts(agentRun?.watts_after ?? displayedState?.total_power_watts ?? 0)}
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-success/30 bg-success/10 p-4">
                     <div className="mb-1 text-xs uppercase tracking-[0.22em] text-success">Saved</div>
@@ -229,14 +243,16 @@ function App() {
           </div>
 
           <div className="space-y-6">
-            <SectionCard title="Agent Reasoning" eyebrow="Interpretation">
+            <SectionCard title="Agent Reasoning" eyebrow="Interpretation" className="border-l-2 border-l-accent/30">
               <div className="mb-4 rounded-2xl border border-accent/20 bg-accent/10 p-4 text-sm text-stone-800">
                 {agentRun?.interpreted_goal ?? "Run a scenario to see how Greenify interprets and executes the goal."}
               </div>
+
               <p className="mb-4 text-sm leading-6 text-stone-600">
                 {agentRun?.reasoning_summary ??
                   "The agent will inspect home state, preserve essential/security devices, and sequence the highest-value energy actions first."}
               </p>
+
               <div className="grid gap-4 lg:grid-cols-2">
                 <div>
                   <div className="panel-title mb-2">Assumptions</div>
@@ -248,6 +264,7 @@ function App() {
                     ))}
                   </ul>
                 </div>
+
                 <div>
                   <div className="panel-title mb-2">Constraints</div>
                   <ul className="space-y-2 text-sm text-stone-600">
@@ -261,10 +278,11 @@ function App() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Selected Plan" eyebrow="Execution">
+            <SectionCard title="Selected Plan" eyebrow="Execution" className="border-l-2 border-l-accent/30">
               <div className="space-y-3">
                 {(agentRun?.selected_plan ?? []).map((action, index) => {
                   const isActive = index + 1 <= activeStep;
+
                   return (
                     <div
                       key={action.id}
@@ -287,7 +305,10 @@ function App() {
             <SectionCard title="Skipped by Constraints" eyebrow="No Action">
               <div className="space-y-3">
                 {(agentRun?.skipped_actions ?? []).map((item) => (
-                  <div key={item.device_id} className="rounded-2xl border border-accentWarm/20 bg-accentWarm/8 px-4 py-3">
+                  <div
+                    key={item.device_id}
+                    className="rounded-2xl border border-accentWarm/20 bg-accentWarm/8 px-4 py-3"
+                  >
                     <div className="font-medium text-stone-900">{item.title}</div>
                     <div className="text-sm text-stone-600">{item.reason}</div>
                   </div>
@@ -299,6 +320,7 @@ function App() {
               <div className="space-y-3">
                 {(agentRun?.execution_results ?? []).map((item, index) => {
                   const reached = index + 1 <= activeStep;
+
                   return (
                     <div
                       key={item.action_id}
