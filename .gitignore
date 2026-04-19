@@ -5,6 +5,7 @@
 *.local
 *.log
 CLAUDE.md
+INFO.md
 
 # Dependencies
 node_modules/
