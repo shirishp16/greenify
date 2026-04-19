@@ -180,7 +180,7 @@ If the user asks for something impossible or unsafe, return an empty `plan` and 
 
 
 def _is_configured() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY", "").strip())
+    return bool(os.getenv("ANTHROPIC_API_KEY", "").strip())
 
 
 def _build_chat_history_block(chat_history: list[ChatLogMessage] | None) -> str:
@@ -258,31 +258,32 @@ def plan_with_llm(
     so the fallback path is honest about why it ran.
     """
     if not _is_configured():
-        return None, "OPENAI_API_KEY not set — running emergency rules fallback."
+        return None, "ANTHROPIC_API_KEY not set — running emergency rules fallback."
 
     try:
-        from openai import OpenAI
+        from anthropic import Anthropic
     except ImportError:
-        logger.warning("openai package not installed; falling back to rules planner.")
-        return None, "openai package not installed — running emergency rules fallback."
+        logger.warning("anthropic package not installed; falling back to rules planner.")
+        return None, "anthropic package not installed — running emergency rules fallback."
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest").strip() or "claude-3-5-sonnet-latest"
 
     try:
-        client = OpenAI()
-        completion = client.chat.completions.create(
+        client = Anthropic()
+        completion = client.messages.create(
             model=model,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": _build_user_prompt(home_state, goal, chat_history=chat_history)},
-            ],
+            max_tokens=1500,
+            temperature=0,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": _build_user_prompt(home_state, goal, chat_history=chat_history)}],
         )
     except Exception as exc:
-        logger.warning("OpenAI call failed (%s); falling back to rules planner.", exc)
+        logger.warning("Anthropic call failed (%s); falling back to rules planner.", exc)
         return None, f"LLM call failed ({exc.__class__.__name__}) — running emergency rules fallback."
 
-    raw = completion.choices[0].message.content or ""
+    raw = "\n".join(
+        block.text for block in completion.content if getattr(block, "type", None) == "text" and getattr(block, "text", "")
+    ).strip()
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:

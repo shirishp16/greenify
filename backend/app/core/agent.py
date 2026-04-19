@@ -19,7 +19,7 @@ from app.models.schemas import (
     PlanAction,
     SkippedAction,
 )
-from app.services.openai_agent import OpenAIPlanner, OpenAIPlanningError
+from app.services.anthropic_agent import AnthropicPlanner, AnthropicPlanningError
 from app.services.smart_plug import SmartPlugService
 
 
@@ -32,9 +32,9 @@ class EnergyAgent:
         "garage": ["garage"],
     }
 
-    def __init__(self, smart_plug_service: SmartPlugService, openai_planner: OpenAIPlanner | None = None) -> None:
+    def __init__(self, smart_plug_service: SmartPlugService, anthropic_planner: AnthropicPlanner | None = None) -> None:
         self.smart_plug_service = smart_plug_service
-        self.openai_planner = openai_planner or OpenAIPlanner()
+        self.anthropic_planner = anthropic_planner or AnthropicPlanner()
 
     def _goal_implies_room_presence(self, normalized_goal: str, aliases: list[str], activity: str) -> bool:
         presence_patterns = [

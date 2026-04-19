@@ -8,7 +8,7 @@ For pure run instructions, see [README.md](README.md). For Claude-Code-session-s
 
 ## 1. Product Overview
 
-Greenify is an AI-powered home energy agent. A resident types a plain-English goal ("I'm leaving for three hours, keep the house secure"), an OpenAI planning model selects a safe, explainable set of device actions, the backend executes those actions against a simulated home, and a 3D dollhouse on the dashboard animates the resulting state changes in real time. Every number the user sees (watts before, watts after, savings) is recomputed from actual state, not guessed by the LLM.
+Greenify is an AI-powered home energy agent. A resident types a plain-English goal ("I'm leaving for three hours, keep the house secure"), a Claude planning model selects a safe, explainable set of device actions, the backend executes those actions against a simulated home, and a 3D dollhouse on the dashboard animates the resulting state changes in real time. Every number the user sees (watts before, watts after, savings) is recomputed from actual state, not guessed by the LLM.
 
 **Audience:** hackathon judges, investor/demo viewers, and marketing content (screenshots, explainer videos, one-pagers).
 
@@ -96,8 +96,8 @@ greenify/
 ├── CLAUDE.md                          # Claude Code session guide (gitignored)
 ├── Makefile                           # Convenience targets
 ├── backend/
-│   ├── requirements.txt               # fastapi, uvicorn, pydantic, openai>=1.40, python-dotenv
-│   ├── .env / .env.example            # OPENAI_API_KEY, OPENAI_MODEL, etc.
+│   ├── requirements.txt               # fastapi, uvicorn, pydantic, anthropic, python-dotenv
+│   ├── .env / .env.example            # ANTHROPIC_API_KEY, ANTHROPIC_MODEL, etc.
 │   ├── app/
 │   │   ├── main.py                    # FastAPI app — load_dotenv() MUST stay before route imports
 │   │   ├── api/
@@ -229,7 +229,7 @@ The rules-fallback executor produces a `turn_on` action titled **"Run Central HV
 
 The LLM path is steered by two prompt additions:
 - In `llm_planner.py` SYSTEM_PROMPT: *"Treat hvac as a whole-home comfort system. When outdoor temperature is outside the comfort band, prefer it ON unless the prompt is explicitly cost-sensitive or the resident is away and comfort is not being preserved."*
-- In `openai_agent.py` instructions: *"Use whole-home HVAC when weather materially exceeds the comfort band, and reduce it only when the prompt clearly allows comfort tradeoffs."*
+- In `anthropic_agent.py` instructions: *"Use whole-home HVAC when weather materially exceeds the comfort band, and reduce it only when the prompt clearly allows comfort tradeoffs."*
 
 The closed action vocabulary now documents HVAC under both `turn_on` and `turn_off` (see §4.5). No HVAC-specific action type was added — the existing on/off verbs cover it.
 
@@ -552,7 +552,7 @@ Verbatim language already in the product — use these as canonical taglines:
   - "Prepare the house for sleep mode." (sleep)
   - "It's 95°F outside — keep the house comfortable even if it costs more." (HVAC-forced-on)
 - **Status labels:** *Ready* → *Loading home state* → *Executing plan* → *Run complete*
-- **Planner labels:** *OpenAI Planner* (primary) / *Rules Fallback* (emergency)
+- **Planner labels:** *Anthropic Planner* (primary) / *Rules Fallback* (emergency)
 
 Voice cues: confident, transparent, never magical. The agent *selects*, *preserves*, *defers*, *skips* — it does not "optimize your life."
 
@@ -564,7 +564,7 @@ Voice cues: confident, transparent, never magical. The agent *selects*, *preserv
 
 ```bash
 cd backend
-cp .env.example .env      # then fill in OPENAI_API_KEY
+cp .env.example .env      # then fill in ANTHROPIC_API_KEY
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```

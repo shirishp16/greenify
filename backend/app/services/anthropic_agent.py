@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
+from anthropic import APIConnectionError, APIError, APITimeoutError, Anthropic, RateLimitError
 
 from app.core.settings import settings
 from app.models.schemas import GoalIntent, HomeState, PlanAction, SkippedAction
 
 
-class OpenAIPlanningError(Exception):
+class AnthropicPlanningError(Exception):
     pass
 
 
@@ -92,10 +92,10 @@ def _planning_schema() -> dict[str, Any]:
     }
 
 
-class OpenAIPlanner:
+class AnthropicPlanner:
     def __init__(self) -> None:
-        self.enabled = bool(settings.openai_api_key)
-        self.client = OpenAI(api_key=settings.openai_api_key) if self.enabled else None
+        self.enabled = bool(settings.anthropic_api_key)
+        self.client = Anthropic(api_key=settings.anthropic_api_key) if self.enabled else None
 
     def is_enabled(self) -> bool:
         return self.enabled and self.client is not None
@@ -111,7 +111,7 @@ class OpenAIPlanner:
         hard_constraints: list[str],
     ) -> dict[str, Any]:
         if not self.client:
-            raise OpenAIPlanningError("OpenAI client is not configured.")
+            raise AnthropicPlanningError("Anthropic client is not configured.")
 
         prompt = {
             "goal": goal,
@@ -163,7 +163,7 @@ class OpenAIPlanner:
         }
 
         instructions = (
-            "You are Greenify's planning model. "
+            "You are Greenify's Claude planning model. "
             "Convert the user's energy goal into a realistic home automation plan. "
             "Only select action ids from candidate_actions. "
             "Never contradict hard_constraints. "
@@ -175,20 +175,24 @@ class OpenAIPlanner:
         )
 
         try:
-            response = self.client.responses.create(
-                model=settings.openai_model,
-                reasoning={"effort": settings.openai_reasoning_effort},
-                instructions=instructions,
-                input=json.dumps(prompt),
-                text={"format": _planning_schema()},
+            response = self.client.messages.create(
+                model=settings.anthropic_model,
+                max_tokens=settings.anthropic_max_tokens,
+                temperature=settings.anthropic_temperature,
+                system=instructions,
+                messages=[{"role": "user", "content": json.dumps(prompt)}],
             )
         except (APIConnectionError, APITimeoutError, RateLimitError, APIError) as exc:
-            raise OpenAIPlanningError(str(exc)) from exc
+            raise AnthropicPlanningError(str(exc)) from exc
 
-        if not response.output_text:
-            raise OpenAIPlanningError("OpenAI returned an empty planning response.")
+        output_text = "\n".join(
+            block.text for block in response.content if getattr(block, "type", None) == "text" and getattr(block, "text", "")
+        ).strip()
+
+        if not output_text:
+            raise AnthropicPlanningError("Anthropic returned an empty planning response.")
 
         try:
-            return json.loads(response.output_text)
+            return json.loads(output_text)
         except json.JSONDecodeError as exc:
-            raise OpenAIPlanningError("OpenAI returned invalid planning JSON.") from exc
+            raise AnthropicPlanningError("Anthropic returned invalid planning JSON.") from exc

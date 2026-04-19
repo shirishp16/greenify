@@ -462,20 +462,6 @@ function App() {
                 actionScope={parsedIntent?.action_scope ?? []}
                 onDeviceToggle={handleDeviceToggle}
               />
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 p-3 text-sm text-stone-600">
-                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-stone-500">Protected Rooms</div>
-                  Rooms needed for the activity are highlighted and preserved.
-                </div>
-                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 p-3 text-sm text-stone-600">
-                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-stone-500">Action Scope</div>
-                  If prompt scope is narrow, only those device types are eligible.
-                </div>
-                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 p-3 text-sm text-stone-600">
-                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-stone-500">Execution Timeline</div>
-                  Current step label maps directly to the backend execution snapshot.
-                </div>
-              </div>
             </SectionCard>
           </div>
 
@@ -652,41 +638,6 @@ function App() {
               ) : (
                 <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3 text-sm text-stone-500">
                   No skipped actions for this run.
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Execution Timeline"
-              eyebrow="Run Log"
-              subtitle="Per-step execution output tied to the snapshot currently shown in the simulation."
-            >
-              {(agentRun?.execution_results ?? []).length > 0 ? (
-                <div className="space-y-3">
-                  {(agentRun?.execution_results ?? []).map((item, index) => {
-                    const reached = index + 1 <= activeStep;
-
-                    return (
-                      <div
-                        key={item.action_id}
-                        className={`rounded-2xl border px-4 py-3 text-sm transition ${
-                          reached
-                            ? "border-accent/20 bg-accent/10 text-stone-800"
-                            : "border-stone-900/10 bg-stone-900/5 text-stone-500"
-                        }`}
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-4">
-                          <span className="font-medium">{item.title}</span>
-                          <span>{formatWatts(item.resulting_power_watts)}</span>
-                        </div>
-                        <div>{item.message}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-stone-900/10 bg-stone-900/5 px-4 py-3 text-sm text-stone-500">
-                  Timeline appears after the first run.
                 </div>
               )}
             </SectionCard>

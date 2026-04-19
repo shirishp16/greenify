@@ -6,9 +6,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5-mini")
-    openai_reasoning_effort: str = os.getenv("OPENAI_REASONING_EFFORT", "low")
+    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    anthropic_max_tokens: int = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))
+    anthropic_temperature: float = float(os.getenv("ANTHROPIC_TEMPERATURE", "0"))
 
 
 settings = Settings()
