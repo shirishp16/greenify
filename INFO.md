@@ -24,30 +24,50 @@ Greenify is an AI-powered home energy agent. A resident types a plain-English go
 ### Primary flow: goal → animated plan
 
 ```
-1. User types goal in textarea         (frontend: App.tsx)
-2. POST /api/agent/plan-and-execute    (frontend: api.ts → fetch)
-3. build_home_state_from_goal(goal)    (backend: state.py picks scenario by keywords)
-4. EnergyAgent.plan_and_execute()      (backend: agent.py)
-      ├─ rule-based GoalIntent parse       (phrase matching, protected rooms, scope)
-      ├─ _candidate_actions()              (full closed set of safe actions)
-      ├─ AnthropicPlanner.plan(...)        (Claude API, JSON output)
-      │     └─ selects from candidate IDs  (never invents raw actions)
-      │     └─ returns reasoning, assumptions, constraints, rationales
-      ├─ [on LLM failure] rules fallback   (planner="rules" + planner_notice)
-      └─ execution loop:
-            ├─ _apply_action()              (deep-copy state, overwrite device.state)
-            ├─ with_total_power()           (recompute watts from compute_device_draw)
-            ├─ append HomeStateSnapshot     (one per step)
+1. User types goal in textarea                       (frontend: App.tsx)
+2. POST /api/agent/plan-and-execute                  (frontend: api.ts — body: {goal, chat_history})
+3. build_home_state_from_goal(goal)                  (backend: state.py picks scenario by keywords)
+4. EnergyAgent.plan_and_execute(state, goal, chat_history):
+      ├─ _parse_direct_command(goal)                 (fast-path for "turn on bedroom lamp" — skips LLM)
+      ├─ _compose_goal_with_history(goal, chat)      (prepends last-N user+assistant turns)
+      ├─ parse_goal(composed, state) → GoalIntent    (phrase matching, protected rooms, scope)
+      ├─ plan_with_llm(state, goal, chat_history)    (llm_planner.py — chat.completions + JSON mode)
+      │     ├─ _build_user_prompt(state, goal, hist) (full home state JSON + chat replay)
+      │     ├─ OpenAI returns LLMPlan JSON           (actions + reasoning + assumptions + skipped)
+      │     └─ LLMPlan.model_validate(payload)       (Pydantic enforces shape)
+      ├─ ┬  on success:
+      │ ├─ _convert_llm_plan(state, plan):           (validates each action against the device)
+      │ │      ├─ drop unknown device_ids
+      │ │      ├─ drop non-remote-controllable
+      │ │      ├─ drop is_on=false on essential devices
+      │ │      ├─ drop per-action-type invariant violations
+      │ │      └─ rejected → skipped_actions w/ reason
+      │ └─ re-sort by LLM-assigned priority
+      ├─ ┴  on failure (no key, bad JSON, schema mismatch, unsupported action_type):
+      │      └─ rules fallback: _candidate_actions + _prioritize
+      │            (planner="rules", planner_notice explains why)
+      └─ execution loop (shared across both paths):
+            ├─ if device.real_device and is_on changes → smart_plug_service.set_power(id, bool)
+            ├─ _apply_action()                        (deep-copy state, overwrite device.state)
+            ├─ with_total_power()                     (recompute watts from compute_device_draw)
+            ├─ append HomeStateSnapshot               (one per step)
             └─ append ExecutionResult
-5. AgentResponse returned                (initial_state, snapshots[], final_state)
-6. home_state_store.set_state(final)     (persists across requests until restart)
-7. Frontend playback(response):          (App.tsx)
+5. AgentResponse returned                            (initial_state, snapshots[], final_state,
+                                                      watts_before/after/saved, planner, notice)
+6. home_state_store.set_state(final)                 (persists across requests until restart)
+7. Frontend playback(response):                      (App.tsx)
       ├─ setDisplayedState(initial_state)
-      ├─ walk snapshots: 600ms for step 0, 1100ms per subsequent
-      ├─ playbackVersion ref cancels stale loops if user clicks again
+      ├─ walk snapshots: 600ms step 0, 1100ms per subsequent
+      ├─ playbackVersion ref cancels stale loops on re-run or direct toggle
       └─ finalize setServerState(final_state)
 8. HouseScene re-renders on every setDisplayedState
       └─ devices.tsx lerps light intensity / emissive / fan RPM toward target
+9. Savings persistence:                              (App.tsx)
+      ├─ appendSavingsRecord(history, createSavingsRunRecord(response))
+      └─ localStorage "greenify.savings_history.v1" (cap 500 records)
+10. Conversation memory:                             (App.tsx)
+      ├─ append user turn + assistant summary
+      └─ localStorage "greenify.chat_log.v1"         (cap 80 msgs; last 16 sent on next run)
 ```
 
 ### Secondary flow: direct device control
@@ -80,14 +100,16 @@ greenify/
 │   ├── .env / .env.example            # ANTHROPIC_API_KEY, ANTHROPIC_MODEL, etc.
 │   ├── app/
 │   │   ├── main.py                    # FastAPI app — load_dotenv() MUST stay before route imports
-│   │   ├── api/routes.py              # 4 endpoints (see §4)
+│   │   ├── api/
+│   │   │   ├── routes.py              # 4 demo endpoints (see §4)
+│   │   │   └── igs.py                 # /igs/* grid-services router (home-profile, optimization-result, event-response)
 │   │   ├── core/
-│   │   │   ├── agent.py               # EnergyAgent — candidate gen + LLM dispatch + rules fallback + executor
-│   │   │   ├── state.py               # HomeStateStore, _base_devices (13), scenario builders
-│   │   │   ├── settings.py            # Frozen dataclass reading Anthropic env vars
-│   │   │   └── llm_planner.py         # Legacy Claude planner module (still imported, not primary)
+│   │   │   ├── agent.py               # EnergyAgent — direct-command fast-path + LLM dispatch + rules fallback + executor
+│   │   │   ├── state.py               # HomeStateStore, _base_devices (14), scenario builders, build_home_state_from_goal
+│   │   │   ├── settings.py            # Frozen dataclass reading OpenAI env vars
+│   │   │   └── llm_planner.py         # PRIMARY LLM path — chat.completions + JSON object mode + LLMPlan Pydantic schema
 │   │   ├── services/
-│   │   │   ├── anthropic_agent.py     # Primary LLM client — Claude API + JSON parsing
+│   │   │   ├── openai_agent.py        # OpenAIPlanner class (Responses API + strict JSON schema) — instantiated by agent but NOT on the plan_and_execute path; kept for reference / future reintroduction
 │   │   │   └── smart_plug.py          # Real/mock smart-plug adapter (Apple Shortcuts + Home Assistant)
 │   │   └── models/schemas.py          # All Pydantic models + SUPPORTED_ACTION_TYPES set
 │   └── tests/                         # test_agent.py (minimal coverage)
@@ -99,18 +121,20 @@ greenify/
     ├── package.json                   # React 19, Vite, Tailwind 3, @react-three/fiber, drei, framer-motion
     └── src/
         ├── main.tsx                   # ReactDOM StrictMode root
-        ├── App.tsx                    # Dashboard — all page composition + playback loop
-        ├── api.ts                     # getHomeState, planAndExecute, toggleDevice
-        ├── types.ts                   # TS mirror of Pydantic schemas
+        ├── App.tsx                    # Dashboard — page composition, playback loop, chat log, savings history
+        ├── api.ts                     # getHomeState, planAndExecute(goal, chat_history), toggleDevice
+        ├── types.ts                   # TS mirror of Pydantic schemas + ChatLogMessage
         ├── utils.ts                   # formatClock, formatWatts, toTitleCase
+        ├── savings.ts                 # Savings math — wattsToKwh, electricity rate, monthly series, category breakdown, CO₂, localStorage persistence
         ├── index.css                  # Global gradients + .panel/.panel-title/.data-pill/.kpi-card/.input-surface
-        ├── data/scenarios.ts          # Three starter-goal presets
         └── components/
             ├── SectionCard.tsx        # Titled card (eyebrow + accent separator)
-            ├── HouseScene.tsx         # Canvas, camera, lights, OrbitControls, findDevice lookups (13 bindings)
+            ├── HouseScene.tsx         # Canvas, camera, lights, OrbitControls, findDevice lookups (12 bindings — no fridge mesh)
+            ├── MonthlySavingsModal.tsx # 30-day trend modal (cost/energy toggle, category breakdown, CO₂)
+            ├── SavingsTrendChart.tsx   # SVG line chart used inside the modal
             └── house/
                 ├── RoomShell.tsx      # Box-geometry room + floating label
-                └── devices.tsx        # 10 device components + lerp hooks (incl. HVACUnit + TeslaCar)
+                └── devices.tsx        # Device components + lerp hooks (incl. HVACUnit)
 ```
 
 ---
@@ -119,33 +143,53 @@ greenify/
 
 ### 4.1 API Contract
 
+Four demo endpoints under `/api/*`, mounted in `main.py`:
+
 | Method | Path | Request | Response | Side effects |
 |---|---|---|---|---|
 | GET | `/api/health` | — | `{"status":"ok"}` | None |
 | GET | `/api/home-state` | — | `HomeState` | None |
-| POST | `/api/agent/plan-and-execute` | `{"goal": str}` | `AgentResponse` | Rebuilds scenario from goal, runs LLM plan, persists `final_state` to store |
+| POST | `/api/agent/plan-and-execute` | `{"goal": str, "chat_history": ChatLogMessage[]}` | `AgentResponse` | Rebuilds scenario from goal, runs LLM plan, persists `final_state` to store |
 | POST | `/api/device/{device_id}/toggle` | — | `HomeState` | Flips `is_on`, derives companion fields, calls real smart plug if `real_device` |
 
-### 4.2 Anthropic Integration (primary path)
+A second router `/igs/*` is mounted from [backend/app/api/igs.py](backend/app/api/igs.py) for grid-services integration — `POST /igs/home-profile`, `POST /igs/optimization-result`, `POST /igs/event-response`. These are not consumed by the current frontend.
 
-- **SDK call:** `client.messages.create(...)` — uses the Anthropic Messages API.
-- **Model:** `ANTHROPIC_MODEL` env (default `claude-3-5-sonnet-latest`) with `ANTHROPIC_MAX_TOKENS=1500` and `ANTHROPIC_TEMPERATURE=0`.
-- **Structured output:** Claude is prompted to return JSON that matches the planner schema, then the backend parses and validates it locally.
-- **Inputs given to model:** the user goal, the rules-derived `default_intent`, the full `home_state` (all 13 devices with flags + current state), the `candidate_actions` list (backend-validated options), existing `skipped_actions`, and `hard_constraints` strings.
-- **Required output fields:** `mode`, `duration_hours`, `activity`, `preserve_security`, `preserve_comfort`, `cost_sensitive`, `prioritize_sleep`, `protected_rooms[]`, `action_scope[]`, `interpreted_goal`, `assumptions[]`, `constraints_applied[]`, `reasoning_summary`, `selected_action_ids[]`, `action_rationales[]`, `skipped_actions[]`.
-- **Key insight — candidate-first planning:** the model does **not** invent raw target states. It selects from `candidate_actions[].id` which the backend generated deterministically. Every `selected_action_ids` entry maps back to a pre-validated `PlanAction`. This means the LLM cannot propose anything unsafe.
-- **Failure modes** (all raise `AnthropicPlanningError`, caught by agent → rules fallback):
-  - `APIConnectionError`, `APITimeoutError`, `RateLimitError`, `APIError`
-  - Empty `output_text`
-  - Invalid JSON
+### 4.2 OpenAI Integration (primary path — `llm_planner.py:plan_with_llm`)
 
-### 4.3 Rules Fallback
+- **SDK call:** `client.chat.completions.create(...)` with `response_format={"type":"json_object"}`. **Not** the Responses API — that code path lives in `services/openai_agent.py` (`OpenAIPlanner.plan`, still present for reference) but is not wired into `plan_and_execute`.
+- **Model:** `OPENAI_MODEL` env (default `gpt-4o-mini`). Any chat-completion-capable model that supports JSON-object mode works.
+- **Inputs given to model:**
+  - `SYSTEM_PROMPT` — the closed action vocabulary, per-type `target_state` contracts, worked examples, hard-constraint checklist.
+  - User message built by `_build_user_prompt(home_state, goal, chat_history)` — full home state JSON (occupancy, time, peak pricing, outdoor temp, comfort band, every device with flags and current state) plus the serialized chat replay.
+- **Output contract (`LLMPlan`, validated via Pydantic `model_validate`):**
+  - `interpreted_goal: str`
+  - `reasoning_summary: str`
+  - `assumptions: list[str]`
+  - `constraints_applied: list[str]`
+  - `plan: list[LLMPlanAction]` — each with `device_id`, `action_type`, complete `target_state`, `priority`, `estimated_savings_watts`, `title`, `description`, `reason`
+  - `skipped: list[LLMSkipped]` — model's own self-reported skips with reasons
+- **Key insight — LLM writes target_state directly, backend validates:** the LLM is *not* constrained to pick from a pre-computed candidate set. It writes complete `DeviceState` objects, and `_convert_llm_plan` in `agent.py` runs every action through `_validate_action_against_device` before execution. Invalid actions land in `skipped_actions` with a concrete reason string. The LLM is not re-called.
+- **Failure modes (all return `(None, notice_string)` from `plan_with_llm`, caught by agent → rules fallback):**
+  - `OPENAI_API_KEY` not set
+  - `openai` package not importable
+  - Any exception from `client.chat.completions.create` (network, timeout, rate limit, auth, server error — caught as broad `Exception`)
+  - Empty or non-JSON content
+  - Payload fails `LLMPlan` schema validation
+  - Any `action_type` not in `SUPPORTED_ACTION_TYPES`
 
-When `AnthropicPlanner.is_enabled()` is false (no API key) or the call raises, `EnergyAgent` uses deterministic keyword phrase matching to build the `GoalIntent` and pick candidate actions. Signatures live in `agent.py`:
+### 4.3 Rules Fallback and Direct-Command Fast-Path
+
+Two non-LLM paths live alongside the primary LLM flow:
+
+**Direct-command fast-path** (`_parse_direct_command` in `agent.py:1109`): imperative prompts like *"turn on the bedroom lamp"* or *"turn off the TV"* are detected by phrase matching, resolved to a single device, and executed without calling the LLM at all. Returns `planner="rules"` with notice *"Direct command — agent used the set_device_power tool immediately."*
+
+**Rules planner** (`_candidate_actions` + `_prioritize`): when `plan_with_llm` returns `None`, the agent composes a `GoalIntent` from the goal text (with recent chat history prepended via `_compose_goal_with_history`) and generates candidate actions deterministically:
 
 - `ROOM_ALIASES` — maps rooms to aliases ("office" → `["office","desk","study"]`, etc.).
-- `_goal_implies_room_presence(goal, aliases, activity)` — matches >50 phrase patterns like `"working in the bedroom"`, `"keep the kitchen on"`, `"except the office"`.
-- Response is still a valid `AgentResponse`, but `planner="rules"` and `planner_notice` explains why ("Anthropic disabled", "Anthropic planner error: ...").
+- `_goal_implies_room_presence(goal, aliases, activity)` — matches >50 phrase patterns like *"working in the bedroom"*, *"keep the kitchen on"*, *"except the office"*.
+- Response shape matches the LLM path (`AgentResponse` is identical), but `planner="rules"` and `planner_notice` explains the fallback reason (e.g., *"OPENAI_API_KEY not set — running emergency rules fallback"*, *"LLM response was not valid JSON — running emergency rules fallback"*).
+
+The rules engine only covers `turn_off`, `fan_slow`/`fan_off`, and `pause_charging`; the richer action verbs (`set_brightness`, `resume_charging`) are LLM-only.
 
 ### 4.4 Device Catalog (14 devices, defined in `state.py:_base_devices()`)
 
@@ -227,15 +271,15 @@ Loaded via `python-dotenv` in `main.py` before the routes module imports. Critic
 
 | Var | Default | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Required for LLM path |
-| `ANTHROPIC_MODEL` | `claude-3-5-sonnet-latest` | Claude model used for planning |
-| `ANTHROPIC_MAX_TOKENS` | `1500` | Max Claude output tokens |
-| `ANTHROPIC_TEMPERATURE` | `0` | Keeps plan generation deterministic |
+| `OPENAI_API_KEY` | — | Required for the LLM path |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Any chat-completion model supporting JSON-object mode |
 | `GREENIFY_ENV` | `development` | Environment tag |
 | `HOST` / `PORT` | `0.0.0.0` / `8000` | Uvicorn |
 | `REAL_SMART_PLUG_ENABLED` | `false` | Toggles mock → real smart plug |
-| `APPLE_SHORTCUT_*` | — | Apple Shortcuts adapter names (macOS demo) |
-| `HA_*` | — | Home Assistant + Matter adapter (Linux) |
+| `REAL_SMART_PLUG_API_KEY` | — | Vendor credential (only used when real adapter enabled) |
+| `APPLE_SHORTCUT_<DEVICE_ID>_ON/_OFF` | — | Apple Shortcuts adapter names (macOS demo; highest priority) |
+| `HA_BASE_URL`, `HA_TOKEN`, `HA_ENTITY_ID_<DEVICE_ID>` | — | Home Assistant + Matter adapter (Linux) |
+| `VITE_API_URL` | `http://localhost:8000` | Frontend → backend base URL (client-side) |
 
 ---
 
@@ -252,6 +296,9 @@ Loaded via `python-dotenv` in `main.py` before the routes module imports. Critic
 | `activeStepLabel: string` | Human-readable step label |
 | `isRunning`, `isLoading`, `error` | UI state flags |
 | `playbackVersion: useRef(0)` | Incremented on every new run / direct toggle — cancels stale playback loops |
+| `chatLog: ChatLogMessage[]` | Rolling conversation memory (max 80); synced to `localStorage["greenify.chat_log.v1"]`. Last 16 turns sent to the backend on the next `planAndExecute` as `chat_history`. |
+| `savingsHistory: SavingsRunRecord[]` | Every completed run appended via `appendSavingsRecord`; synced to `localStorage["greenify.savings_history.v1"]` (cap 500). |
+| `isMonthlySavingsOpen`, `monthlyView` | Controls the Monthly Savings modal visibility and cost/energy toggle |
 
 ### 5.2 Playback Loop
 
@@ -265,34 +312,41 @@ Before each step, it checks `playbackVersion.current` — if the user clicked "R
 ### 5.3 Layout (desktop)
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│ Header (grid lg:grid-cols-[1.25fr_0.75fr])                     │
-│ ┌──────────────────────┐  ┌──────────────────────────────┐     │
-│ │ Greenify Control     │  │ Run Status                    │    │
-│ │ Center (hero copy)   │  │ - progress bar                │    │
-│ │                      │  │ - Before / After / Saved      │    │
-│ └──────────────────────┘  └──────────────────────────────┘     │
-│                                                                │
-│ KPI Strip (5 columns)                                          │
-│ [Occupancy] [Pricing Signal] [Outdoor Temp] [Live Load][Planner]│
-│                                                                │
-│ Main (xl:grid-cols-[1.35fr_0.95fr])                            │
-│ ┌───────────────────────────────┐ ┌───────────────────────┐    │
-│ │ 1. Define The Goal            │ │ Agent Decision        │    │
-│ │   - textarea                  │ │ Console (planner pill,│    │
-│ │   - Run Agent button          │ │ interpreted_goal,     │    │
-│ │                               │ │ reasoning, assumptions│    │
-│ │ 2. Watch The Home Simulation  │ │ + constraints)        │    │
-│ │   - HouseScene (600px tall)   │ │                       │    │
-│ │   - protection legend         │ │ Selected Actions      │    │
-│ │                               │ │ (numbered, reached    │    │
-│ │                               │ │  step highlighted)    │    │
-│ │                               │ │                       │    │
-│ │                               │ │ Skipped Actions       │    │
-│ │                               │ │                       │    │
-│ │                               │ │ Execution Timeline    │    │
-│ └───────────────────────────────┘ └───────────────────────┘    │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ Header (grid xl:grid-cols-[1.08fr_0.92fr])                       │
+│ ┌────────────────────────────┐  ┌────────────────────────────┐   │
+│ │ Greenify brand + Conversa- │  │ Run Status                  │  │
+│ │ tion Memory                │  │ - workflow status           │  │
+│ │ (last 10 chat turns,       │  │ - step label + progress bar │  │
+│ │  Clear button)             │  │ - Before/After/Saved/Value  │  │
+│ │                            │  │ - This run / Today / Monthly│  │
+│ │                            │  │ - "View Monthly Savings" btn│  │
+│ └────────────────────────────┘  └────────────────────────────┘   │
+│                                                                  │
+│ Main (xl:grid-cols-[1.35fr_0.95fr])                              │
+│ ┌────────────────────────────────┐ ┌──────────────────────────┐  │
+│ │ 1. Define The Goal             │ │ Decision Console         │  │
+│ │   - textarea                   │ │ (Engine pill, interpreted│  │
+│ │   - Run Optimizer button       │ │  goal, estimated impact, │  │
+│ │                                │ │  key actions, protected/ │  │
+│ │ 2. Watch The Home Simulation   │ │  skipped, reasoning,     │  │
+│ │   - HouseScene (600px tall)    │ │  assumptions, constraints│  │
+│ │   - protection / scope /       │ │                          │  │
+│ │     timeline legend cards      │ │ Selected Actions         │  │
+│ │                                │ │ (numbered, reached step  │  │
+│ │                                │ │  highlighted, $ per act) │  │
+│ │                                │ │                          │  │
+│ │                                │ │ Skipped Actions          │  │
+│ │                                │ │                          │  │
+│ │                                │ │ Execution Timeline       │  │
+│ └────────────────────────────────┘ └──────────────────────────┘  │
+│                                                                  │
+│ Monthly Savings Modal (overlay, opens on demand)                 │
+│ - Cost/Energy toggle                                             │
+│ - 30-day SavingsTrendChart                                       │
+│ - Totals: month value, month kWh, CO₂ avoided, runs this month   │
+│ - Category breakdown (EV, lighting, HVAC, laundry, screens, other)│
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 Max width: `1700px`. Responsive breakpoints: `sm`, `lg`, `xl`.
@@ -327,6 +381,36 @@ Max width: `1700px`. Responsive breakpoints: `sm`, `lg`, `xl`.
 | `PorchLight` | `is_on`, `brightness`, `scheduled` | Bulb emissive + pointLight; orange tint when scheduled |
 | `Washer` / `Dryer` / `Dishwasher` | `is_on` | Porthole/door + LED indicator fades green |
 | `HVACUnit` | `is_on` | Silver condenser box + torus ring (cyan `#38bdf8` emissive when on, slate `#64748b` off); 4-blade fan spins on z-axis (≈2 Hz) when on; cyan `#7dd3fc` point light halo lerps on/off. Positioned exterior at world `[4.2, 0.3, 2.5]` — the standalone outdoor unit beside the house. |
+
+### 5.6 Conversation Memory
+
+Lives in `App.tsx` — no separate module.
+
+- **Storage key:** `greenify.chat_log.v1` (localStorage).
+- **Cap:** 80 messages (`trimChatLog`); older entries drop from the head.
+- **Shape:** `ChatLogMessage = { role: "user" | "assistant", content: string, timestamp?: string }`.
+- **Context window:** last 16 messages sent to the backend as the `chat_history` field on `planAndExecute`. The backend uses it for two things: (a) the rules planner's `_compose_goal_with_history` prepends it to the goal for keyword intent parsing; (b) `plan_with_llm` embeds a serialized replay in the user prompt so the model has the conversation context.
+- **UI surface:** Conversation Memory card in the header shows the last 10 turns with role, time, and content; a Clear button resets both in-memory state and localStorage.
+- **Assistant turn content:** auto-generated summary — *"{interpreted_goal} Executed N action(s), saved X W. Skipped M action(s) for safety."*
+
+### 5.7 Savings Module (`savings.ts`)
+
+The single source of truth for everything the Run Status panel and Monthly Savings modal display.
+
+| Export | Purpose |
+|---|---|
+| `wattsToKwh(watts, hours)` | `watts * hours / 1000` |
+| `getElectricityRate(peak: bool)` | `0.24` if peak, else `0.16` USD/kWh |
+| `estimateRunSavings(response, peak)` | Uses `watts_saved` and the goal's inferred duration (e.g., *"for 3 hours"*) to compute kWh + USD for a single run |
+| `createSavingsRunRecord(response)` | Builds a `SavingsRunRecord` with id, timestamp, goal, planner, duration, rate, watts/energy/cost saved, CO₂ avoided, category split |
+| `appendSavingsRecord(history, record)` | Append + trim to 500; feeds `saveSavingsHistory` |
+| `loadSavingsHistory`, `saveSavingsHistory` | localStorage accessors for `greenify.savings_history.v1` |
+| `buildMonthlySavingsSeries(history, date, runEstimate)` | 30-day daily aggregate; if no real data, seeds synthetic baseline with realistic variance so the chart isn't blank on first run |
+| `summarizeSavingsSeries(points)` | Totals the series into `{ energyKwh, costUsd, co2Kg }` |
+| `buildMonthlyBreakdown(history, date, totals)` | Splits monthly savings across six categories (EV charging, laundry, lighting, HVAC, screens, other) using action categorization + weighted fallback |
+| `getTodayTotals`, `getMonthTotals` | Short-window roll-ups |
+
+The modal (`MonthlySavingsModal.tsx`) consumes these functions through props; the chart (`SavingsTrendChart.tsx`) is a thin SVG renderer over the monthly series.
 
 ---
 
@@ -505,11 +589,13 @@ See `Makefile` targets if present — the typical flow is `make backend` and `ma
 
 1. **Space Grotesk is not loaded** (see §6.3) — add Google Fonts link for brand parity.
 2. **`kitchen_fridge` has no 3D mesh** — backend-only device; contributes to wattage but invisible in scene.
-3. **State is in-memory** — `HomeStateStore` resets on server restart.
-4. **Legacy `llm_planner.py`** still present alongside the new `AnthropicPlanner`. Safe to remove once we confirm no code paths import it.
-5. **No CORS config checked in** — the backend assumes local dev origin. Production demos need explicit CORS middleware.
+3. **State is in-memory** — `HomeStateStore` resets on server restart. Only real-device state (e.g., the plug) survives via the adapter.
+4. **`services/openai_agent.py` is dormant** — `OpenAIPlanner` (Responses API + strict schema) is instantiated by `EnergyAgent.__init__` but never called on the `plan_and_execute` path. Safe to delete once nothing imports it, or reintroduce as an alternate planner strategy.
+5. **CORS is wide open** — `main.py` uses `allow_origins=["*"]`. Fine for the demo; production needs an explicit origin list.
 6. **HVAC has no room** — `central_hvac.room = "system"` is a sentinel, not a physical room. Scope-matching that filters by room label won't match it; HVAC decisions are driven by outdoor temperature + comfort band instead.
-7. **HVAC has only binary on/off** — the planner cannot currently request a setpoint change (e.g. "raise the thermostat to 78°F"). Any such nuance is collapsed into ON or OFF.
+7. **HVAC has only binary on/off** — the planner cannot currently request a setpoint change (e.g. *"raise the thermostat to 78°F"*). Any such nuance is collapsed into ON or OFF.
+8. **Rules fallback covers a subset of the vocabulary** — only `turn_off`, `fan_slow`/`fan_off`, and `pause_charging`. Richer verbs (`set_brightness`, `resume_charging`) are LLM-only, so a rules-path run on a peak-pricing prompt won't dim lights — it'll turn them off entirely.
+9. **LLM-estimated `estimated_savings_watts` can be wrong** — the per-action figure in the Selected Plan card comes from the LLM. The authoritative savings (Run Status panel, monthly rollups) are recomputed from the state delta by `compute_device_draw` and are unaffected.
 
 ---
 
@@ -523,9 +609,10 @@ See `Makefile` targets if present — the typical flow is `make backend` and `ma
 - **`ExecutionResult`** — one row of the run log: action_id, status, message, resulting wattage.
 - **`HomeStateSnapshot`** — state at step N with a label; drives the 3D playback loop.
 - **`AgentResponse`** — the full payload sent to the frontend: parsed intent, plan, skipped, execution results, snapshots, before/after watts, planner label.
-- **Candidate action** — a safe, backend-pre-validated action the LLM can pick from (by ID).
-- **Target state** — the exact `DeviceState` an action will write into the device if executed.
-- **Planner** — which path produced the plan: `llm` (Claude API) or `rules` (emergency fallback).
-- **Emergency fallback** — the rules-based path that runs when the LLM is unavailable or returned bad data; honest by design — the UI explicitly labels it.
+- **Target state** — the exact `DeviceState` an action will write into the device if executed. On the LLM path, the model writes this directly; on the rules path, `_candidate_actions` generates it.
+- **Planner** — which path produced the plan: `llm` (OpenAI `chat.completions` with JSON-object mode, validated via `LLMPlan` Pydantic) or `rules` (deterministic fallback in `agent.py`).
+- **Emergency fallback** — the rules-based path that runs when the LLM is unavailable or returned bad data; honest by design — the UI explicitly labels it and `planner_notice` carries the reason string.
+- **Chat history** — the trailing slice of `ChatLogMessage`s (cap 16 turns) sent with each `planAndExecute` request. Lets follow-up goals like *"now turn the lights back on"* reference prior state.
+- **Savings history** — persistent log of completed runs (localStorage `greenify.savings_history.v1`) that feeds the Monthly Savings modal's trend chart and category breakdown.
 - **HVAC climate-support window** — the ±2°F band around the comfort range that determines whether the planner considers HVAC worth running. Beyond ±8°F the planner treats the weather as "extreme" and overrides cost-saving prompts to keep HVAC on.
 - **Prompt-Driven State** — the label displayed in the 3D scene's mode pill. Replaces the older scenario-name labels ("Away", "Peak Pricing", "Sleep Prep"), reflecting that the planner now reacts to the typed goal rather than a pre-selected scenario.
