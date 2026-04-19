@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="highlight" cx="34%" cy="34%" r="40%">
+      <stop offset="0%" stop-color="#FFF8DC" stop-opacity="0.95" />
+      <stop offset="55%" stop-color="#FFF8DC" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#FFF8DC" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="base" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4A7C59" />
+      <stop offset="100%" stop-color="#2F5C3D" />
+    </linearGradient>
+    <linearGradient id="leaf" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#EFF8DC" />
+      <stop offset="100%" stop-color="#C9EFAC" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="29" fill="url(#base)" />
+  <circle cx="32" cy="32" r="29" fill="url(#highlight)" />
+
+  <g transform="rotate(-18 32 32)">
+    <path
+      d="M23 14 C 35 14, 42 24, 40 38 C 27 39, 19 30, 23 14 Z"
+      fill="url(#leaf)"
+    />
+  </g>
+  <rect
+    x="34.2"
+    y="24"
+    width="2.2"
+    height="20"
+    rx="1.1"
+    transform="rotate(26 35.3 34)"
+    fill="rgba(33,64,45,0.48)"
+  />
+</svg>
