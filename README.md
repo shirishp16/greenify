@@ -5,7 +5,7 @@ Greenify is a demo-ready hackathon web app that turns natural-language energy go
 ## Project Overview
 
 - Natural-language goals, not device-by-device control
-- OpenAI-backed agent planning with deterministic safety rails
+- Anthropic-backed agent planning with deterministic safety rails
 - 3D cutaway home with sequential visual execution
 - Mock smart plug integration by default, with a clean real-adapter seam
 - Seeded demo scenarios for away mode, peak pricing, and sleep mode
@@ -27,25 +27,25 @@ The frontend treats the backend response as the source of truth for execution. I
 - `backend/`
 - FastAPI with Pydantic models
 - In-memory seeded home state store
-- OpenAI Responses API integration with deterministic execution constraints
+- Anthropic Claude integration with deterministic execution constraints
 - Smart plug service abstraction with `MockSmartPlugService` enabled by default
 
-The backend owns the simulated home state, generates safe candidate actions, asks OpenAI to interpret and order the plan when configured, executes only validated actions, and returns both the final state and intermediate snapshots for playback.
+The backend owns the simulated home state, generates safe candidate actions, asks Claude to interpret and order the plan when configured, executes only validated actions, and returns both the final state and intermediate snapshots for playback.
 
 ## Agent Flow
 
-Greenify uses a hybrid OpenAI + rules pipeline:
+Greenify uses a hybrid Anthropic + rules pipeline:
 
 1. Parse the user goal into structured intent.
 2. Inspect the current home state and active scenario signals.
 3. Generate candidate actions for controllable devices.
 4. Apply hard constraints.
-5. Send the constrained planning context to the OpenAI Responses API.
+5. Send the constrained planning context to Claude.
 6. Produce a final ordered plan.
 7. Execute actions sequentially.
 8. Return reasoning, skipped actions, execution results, and updated home-state snapshots.
 
-When `OPENAI_API_KEY` is not configured or the API call fails, Greenify falls back to the local planner so the demo path still works.
+When `ANTHROPIC_API_KEY` is not configured or the API call fails, Greenify falls back to the local planner so the demo path still works.
 
 Hard constraints demonstrated in the app:
 
@@ -91,15 +91,16 @@ Copy the example env files if you want to override defaults:
 
 The default frontend API target is `http://localhost:8000`.
 
-### OpenAI configuration
+### Anthropic configuration
 
 Set these in `backend/.env` or your shell:
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` default: `gpt-5-mini`
-- `OPENAI_REASONING_EFFORT` default: `low`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_MODEL` default: `claude-3-5-sonnet-latest`
+- `ANTHROPIC_MAX_TOKENS` default: `1500`
+- `ANTHROPIC_TEMPERATURE` default: `0`
 
-The backend uses the OpenAI Responses API for plan interpretation and ranking, then executes only actions that survive local hard-constraint checks.
+The backend uses Anthropic's Claude API for plan interpretation and ranking, then executes only actions that survive local hard-constraint checks.
 
 ## Run The Project
 
@@ -172,15 +173,15 @@ The UI includes three seeded demo presets:
 
 The simulated `office_demo_plug_lamp` is mapped to the smart plug service layer.
 
-## OpenAI Integration
+## Anthropic Integration
 
-Greenify uses the official OpenAI Python SDK and the Responses API for the AI planner.
+Greenify uses the official Anthropic Python SDK and Claude for the AI planner.
 
-- Planner service: [backend/app/services/openai_agent.py](/Users/kanishkkovuru/Downloads/Coding/ClaudeHack/greenify/backend/app/services/openai_agent.py)
+- Planner service: [backend/app/services/anthropic_agent.py](/Users/kanishkkovuru/Downloads/Coding/ClaudeHack/greenify/backend/app/services/anthropic_agent.py)
 - Agent orchestration: [backend/app/core/agent.py](/Users/kanishkkovuru/Downloads/Coding/ClaudeHack/greenify/backend/app/core/agent.py)
 - Runtime settings: [backend/app/core/settings.py](/Users/kanishkkovuru/Downloads/Coding/ClaudeHack/greenify/backend/app/core/settings.py)
 
-The OpenAI model is responsible for:
+The Claude model is responsible for:
 
 - Interpreting the natural-language goal
 - Refining assumptions and constraint phrasing

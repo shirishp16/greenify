@@ -8,7 +8,7 @@ For pure run instructions, see [README.md](README.md). For Claude-Code-session-s
 
 ## 1. Product Overview
 
-Greenify is an AI-powered home energy agent. A resident types a plain-English goal ("I'm leaving for three hours, keep the house secure"), an OpenAI planning model selects a safe, explainable set of device actions, the backend executes those actions against a simulated home, and a 3D dollhouse on the dashboard animates the resulting state changes in real time. Every number the user sees (watts before, watts after, savings) is recomputed from actual state, not guessed by the LLM.
+Greenify is an AI-powered home energy agent. A resident types a plain-English goal ("I'm leaving for three hours, keep the house secure"), a Claude planning model selects a safe, explainable set of device actions, the backend executes those actions against a simulated home, and a 3D dollhouse on the dashboard animates the resulting state changes in real time. Every number the user sees (watts before, watts after, savings) is recomputed from actual state, not guessed by the LLM.
 
 **Audience:** hackathon judges, investor/demo viewers, and marketing content (screenshots, explainer videos, one-pagers).
 
@@ -30,7 +30,7 @@ Greenify is an AI-powered home energy agent. A resident types a plain-English go
 4. EnergyAgent.plan_and_execute()      (backend: agent.py)
       ├─ rule-based GoalIntent parse       (phrase matching, protected rooms, scope)
       ├─ _candidate_actions()              (full closed set of safe actions)
-      ├─ OpenAIPlanner.plan(...)           (Responses API, strict JSON schema)
+      ├─ AnthropicPlanner.plan(...)        (Claude API, JSON output)
       │     └─ selects from candidate IDs  (never invents raw actions)
       │     └─ returns reasoning, assumptions, constraints, rationales
       ├─ [on LLM failure] rules fallback   (planner="rules" + planner_notice)
@@ -76,18 +76,18 @@ greenify/
 ├── CLAUDE.md                          # Claude Code session guide (gitignored)
 ├── Makefile                           # Convenience targets
 ├── backend/
-│   ├── requirements.txt               # fastapi, uvicorn, pydantic, openai>=1.40, python-dotenv
-│   ├── .env / .env.example            # OPENAI_API_KEY, OPENAI_MODEL, etc.
+│   ├── requirements.txt               # fastapi, uvicorn, pydantic, anthropic, python-dotenv
+│   ├── .env / .env.example            # ANTHROPIC_API_KEY, ANTHROPIC_MODEL, etc.
 │   ├── app/
 │   │   ├── main.py                    # FastAPI app — load_dotenv() MUST stay before route imports
 │   │   ├── api/routes.py              # 4 endpoints (see §4)
 │   │   ├── core/
 │   │   │   ├── agent.py               # EnergyAgent — candidate gen + LLM dispatch + rules fallback + executor
 │   │   │   ├── state.py               # HomeStateStore, _base_devices (13), scenario builders
-│   │   │   ├── settings.py            # Frozen dataclass reading OpenAI env vars
-│   │   │   └── llm_planner.py         # Legacy Chat Completions module (still imported, not primary)
+│   │   │   ├── settings.py            # Frozen dataclass reading Anthropic env vars
+│   │   │   └── llm_planner.py         # Legacy Claude planner module (still imported, not primary)
 │   │   ├── services/
-│   │   │   ├── openai_agent.py        # Primary LLM client — Responses API + JSON schema
+│   │   │   ├── anthropic_agent.py     # Primary LLM client — Claude API + JSON parsing
 │   │   │   └── smart_plug.py          # Real/mock smart-plug adapter (Apple Shortcuts + Home Assistant)
 │   │   └── models/schemas.py          # All Pydantic models + SUPPORTED_ACTION_TYPES set
 │   └── tests/                         # test_agent.py (minimal coverage)
@@ -126,26 +126,26 @@ greenify/
 | POST | `/api/agent/plan-and-execute` | `{"goal": str}` | `AgentResponse` | Rebuilds scenario from goal, runs LLM plan, persists `final_state` to store |
 | POST | `/api/device/{device_id}/toggle` | — | `HomeState` | Flips `is_on`, derives companion fields, calls real smart plug if `real_device` |
 
-### 4.2 OpenAI Integration (primary path)
+### 4.2 Anthropic Integration (primary path)
 
-- **SDK call:** `client.responses.create(...)` — uses the Responses API, **not** Chat Completions.
-- **Model:** `OPENAI_MODEL` env (default `gpt-5-mini`) with `reasoning={"effort": "low"}` for latency.
-- **Structured output:** `text={"format": {"type": "json_schema", "name": "greenify_agent_plan", "strict": true, "schema": {...}}}`. All 16 fields are `required`, `additionalProperties: false`.
+- **SDK call:** `client.messages.create(...)` — uses the Anthropic Messages API.
+- **Model:** `ANTHROPIC_MODEL` env (default `claude-3-5-sonnet-latest`) with `ANTHROPIC_MAX_TOKENS=1500` and `ANTHROPIC_TEMPERATURE=0`.
+- **Structured output:** Claude is prompted to return JSON that matches the planner schema, then the backend parses and validates it locally.
 - **Inputs given to model:** the user goal, the rules-derived `default_intent`, the full `home_state` (all 13 devices with flags + current state), the `candidate_actions` list (backend-validated options), existing `skipped_actions`, and `hard_constraints` strings.
 - **Required output fields:** `mode`, `duration_hours`, `activity`, `preserve_security`, `preserve_comfort`, `cost_sensitive`, `prioritize_sleep`, `protected_rooms[]`, `action_scope[]`, `interpreted_goal`, `assumptions[]`, `constraints_applied[]`, `reasoning_summary`, `selected_action_ids[]`, `action_rationales[]`, `skipped_actions[]`.
 - **Key insight — candidate-first planning:** the model does **not** invent raw target states. It selects from `candidate_actions[].id` which the backend generated deterministically. Every `selected_action_ids` entry maps back to a pre-validated `PlanAction`. This means the LLM cannot propose anything unsafe.
-- **Failure modes** (all raise `OpenAIPlanningError`, caught by agent → rules fallback):
+- **Failure modes** (all raise `AnthropicPlanningError`, caught by agent → rules fallback):
   - `APIConnectionError`, `APITimeoutError`, `RateLimitError`, `APIError`
   - Empty `output_text`
   - Invalid JSON
 
 ### 4.3 Rules Fallback
 
-When `OpenAIPlanner.is_enabled()` is false (no API key) or the call raises, `EnergyAgent` uses deterministic keyword phrase matching to build the `GoalIntent` and pick candidate actions. Signatures live in `agent.py`:
+When `AnthropicPlanner.is_enabled()` is false (no API key) or the call raises, `EnergyAgent` uses deterministic keyword phrase matching to build the `GoalIntent` and pick candidate actions. Signatures live in `agent.py`:
 
 - `ROOM_ALIASES` — maps rooms to aliases ("office" → `["office","desk","study"]`, etc.).
 - `_goal_implies_room_presence(goal, aliases, activity)` — matches >50 phrase patterns like `"working in the bedroom"`, `"keep the kitchen on"`, `"except the office"`.
-- Response is still a valid `AgentResponse`, but `planner="rules"` and `planner_notice` explains why ("OpenAI disabled", "OpenAI planner error: ...").
+- Response is still a valid `AgentResponse`, but `planner="rules"` and `planner_notice` explains why ("Anthropic disabled", "Anthropic planner error: ...").
 
 ### 4.4 Device Catalog (14 devices, defined in `state.py:_base_devices()`)
 
@@ -185,7 +185,7 @@ The rules-fallback executor produces a `turn_on` action titled **"Run Central HV
 
 The LLM path is steered by two prompt additions:
 - In `llm_planner.py` SYSTEM_PROMPT: *"Treat hvac as a whole-home comfort system. When outdoor temperature is outside the comfort band, prefer it ON unless the prompt is explicitly cost-sensitive or the resident is away and comfort is not being preserved."*
-- In `openai_agent.py` instructions: *"Use whole-home HVAC when weather materially exceeds the comfort band, and reduce it only when the prompt clearly allows comfort tradeoffs."*
+- In `anthropic_agent.py` instructions: *"Use whole-home HVAC when weather materially exceeds the comfort band, and reduce it only when the prompt clearly allows comfort tradeoffs."*
 
 The closed action vocabulary now documents HVAC under both `turn_on` and `turn_off` (see §4.5). No HVAC-specific action type was added — the existing on/off verbs cover it.
 
@@ -227,9 +227,10 @@ Loaded via `python-dotenv` in `main.py` before the routes module imports. Critic
 
 | Var | Default | Purpose |
 |---|---|---|
-| `OPENAI_API_KEY` | — | Required for LLM path |
-| `OPENAI_MODEL` | `gpt-5-mini` | Any model that supports the Responses API + strict JSON schema |
-| `OPENAI_REASONING_EFFORT` | `low` | `low` \| `medium` \| `high` |
+| `ANTHROPIC_API_KEY` | — | Required for LLM path |
+| `ANTHROPIC_MODEL` | `claude-3-5-sonnet-latest` | Claude model used for planning |
+| `ANTHROPIC_MAX_TOKENS` | `1500` | Max Claude output tokens |
+| `ANTHROPIC_TEMPERATURE` | `0` | Keeps plan generation deterministic |
 | `GREENIFY_ENV` | `development` | Environment tag |
 | `HOST` / `PORT` | `0.0.0.0` / `8000` | Uvicorn |
 | `REAL_SMART_PLUG_ENABLED` | `false` | Toggles mock → real smart plug |
@@ -467,7 +468,7 @@ Verbatim language already in the product — use these as canonical taglines:
   - "Prepare the house for sleep mode." (sleep)
   - "It's 95°F outside — keep the house comfortable even if it costs more." (HVAC-forced-on)
 - **Status labels:** *Ready* → *Loading home state* → *Executing plan* → *Run complete*
-- **Planner labels:** *OpenAI Planner* (primary) / *Rules Fallback* (emergency)
+- **Planner labels:** *Anthropic Planner* (primary) / *Rules Fallback* (emergency)
 
 Voice cues: confident, transparent, never magical. The agent *selects*, *preserves*, *defers*, *skips* — it does not "optimize your life."
 
@@ -479,7 +480,7 @@ Voice cues: confident, transparent, never magical. The agent *selects*, *preserv
 
 ```bash
 cd backend
-cp .env.example .env      # then fill in OPENAI_API_KEY
+cp .env.example .env      # then fill in ANTHROPIC_API_KEY
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
@@ -505,7 +506,7 @@ See `Makefile` targets if present — the typical flow is `make backend` and `ma
 1. **Space Grotesk is not loaded** (see §6.3) — add Google Fonts link for brand parity.
 2. **`kitchen_fridge` has no 3D mesh** — backend-only device; contributes to wattage but invisible in scene.
 3. **State is in-memory** — `HomeStateStore` resets on server restart.
-4. **Legacy `llm_planner.py`** still present alongside the new `OpenAIPlanner`. Safe to remove once we confirm no code paths import it.
+4. **Legacy `llm_planner.py`** still present alongside the new `AnthropicPlanner`. Safe to remove once we confirm no code paths import it.
 5. **No CORS config checked in** — the backend assumes local dev origin. Production demos need explicit CORS middleware.
 6. **HVAC has no room** — `central_hvac.room = "system"` is a sentinel, not a physical room. Scope-matching that filters by room label won't match it; HVAC decisions are driven by outdoor temperature + comfort band instead.
 7. **HVAC has only binary on/off** — the planner cannot currently request a setpoint change (e.g. "raise the thermostat to 78°F"). Any such nuance is collapsed into ON or OFF.
@@ -524,7 +525,7 @@ See `Makefile` targets if present — the typical flow is `make backend` and `ma
 - **`AgentResponse`** — the full payload sent to the frontend: parsed intent, plan, skipped, execution results, snapshots, before/after watts, planner label.
 - **Candidate action** — a safe, backend-pre-validated action the LLM can pick from (by ID).
 - **Target state** — the exact `DeviceState` an action will write into the device if executed.
-- **Planner** — which path produced the plan: `llm` (OpenAI Responses API) or `rules` (emergency fallback).
+- **Planner** — which path produced the plan: `llm` (Claude API) or `rules` (emergency fallback).
 - **Emergency fallback** — the rules-based path that runs when the LLM is unavailable or returned bad data; honest by design — the UI explicitly labels it.
 - **HVAC climate-support window** — the ±2°F band around the comfort range that determines whether the planner considers HVAC worth running. Beyond ±8°F the planner treats the weather as "extreme" and overrides cost-saving prompts to keep HVAC on.
 - **Prompt-Driven State** — the label displayed in the 3D scene's mode pill. Replaces the older scenario-name labels ("Away", "Peak Pricing", "Sleep Prep"), reflecting that the planner now reacts to the typed goal rather than a pre-selected scenario.

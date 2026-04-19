@@ -48,8 +48,8 @@ def test_away_mode_keeps_fridge_on_and_pauses_ev() -> None:
     assert any(skip.device_id == "kitchen_fridge" for skip in response.skipped_actions)
 
 
-def test_openai_underplanning_recovers_missing_energy_actions() -> None:
-    agent = EnergyAgent(MockSmartPlugService(), openai_planner=UnderPlanningStub())
+def test_anthropic_underplanning_recovers_missing_energy_actions() -> None:
+    agent = EnergyAgent(MockSmartPlugService(), anthropic_planner=UnderPlanningStub())
     state = build_home_state("away_mode")
     response = agent.plan_and_execute(state, "I'm leaving for 3 hours. Reduce energy use but keep the house secure.")
 
