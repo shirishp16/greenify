@@ -2,6 +2,10 @@
 
 **AI-powered home energy optimization with a live 3D simulation.** Type a plain-English goal — *"I'm leaving for 3 hours, keep the house secure"* — and an OpenAI-backed planner decides which devices to change, a strict validator gates every action, and a React + Three.js dollhouse replays the state changes step by step. Savings are computed from the actual state delta, not the model's estimate.
 
+## Awards
+
+1st Place: Claude Hacks @ OSU 2026 - Sustainability Track (Sponsored by Anthropic and IGS Energy)
+
 ---
 
 ## What It Does
